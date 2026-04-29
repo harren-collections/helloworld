@@ -4,7 +4,7 @@ LUCI_TITLE:=luci-app-ssr-plus
 LUCI_PKGARCH:=all
 PKG_NAME:=luci-app-ssr-plus
 PKG_VERSION:=190
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy \
@@ -24,7 +24,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_IPT2Socks \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy \
-	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Redsocks2 \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Client \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client \
@@ -36,7 +35,7 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Libev_Client \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Libev_Server
 
-LUCI_TITLE:=SS/SSR/V2Ray/Trojan/NaiveProxy/Tuic/ShadowTLS/Hysteria/Socks5/Tun LuCI interface
+LUCI_TITLE:=SS/SSR/V2Ray/Trojan/NaiveProxy/Tuic/ShadowTLS/Hysteria/Socks5 LuCI interface
 LUCI_PKGARCH:=all
 LUCI_DEPENDS:= \
 	+coreutils +coreutils-base64 +dns2tcp +dnsmasq-full \
@@ -57,7 +56,6 @@ LUCI_DEPENDS:= \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_IPT2Socks:ipt2socks \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun:kcptun-client \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy:naiveproxy \
-	+PACKAGE_$(PKG_NAME)_INCLUDE_Redsocks2:redsocks2 \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Client:shadowsocks-libev-ss-local \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Client:shadowsocks-libev-ss-redir \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Server:shadowsocks-libev-ss-server \
@@ -201,10 +199,6 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun
 config PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy
 	bool "Include NaiveProxy"
 	depends on !(arc||armeb||mips||mips64||powerpc||TARGET_gemini)
-	default n
-
-config PACKAGE_$(PKG_NAME)_INCLUDE_Redsocks2
-	bool "Include Redsocks2"
 	default n
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Simple_Obfs

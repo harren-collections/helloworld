@@ -127,6 +127,7 @@ end
 -- [[ SOCKS5 Proxy ]]--
 s = m:section(TypedSection, "socks5_proxy", translate("Global SOCKS5 Proxy Server"))
 s.anonymous = true
+s.description = translate("Lightweight Socks5 transparent proxy nodes are not available here. Use Xray Socks for generic Socks outbound.")
 
 -- Enable/Disable Option
 o = s:option(Flag, "enabled", translate("Enable"))
@@ -137,7 +138,9 @@ o.rmempty = false
 o = s:option(ListValue, "server", translate("Server"))
 o:value("same", translate("Same as Global Server"))
 for _, key in pairs(key_table) do
-	o:value(key, server_table[key])
+	if type_table[key] ~= "socks5" then
+		o:value(key, server_table[key])
+	end
 end
 o.default = "same"
 o.rmempty = false
