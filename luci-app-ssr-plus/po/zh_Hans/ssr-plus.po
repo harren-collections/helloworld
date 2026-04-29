@@ -2906,3 +2906,9 @@ msgstr "对被代理的 UDP/443 流量处理方式"
 
 #~ msgid "Reset Error"
 #~ msgstr "重置错误"
+
+msgid "Start Detection"
+msgstr "开始探测"
+
+msgid "Stop Detection"
+msgstr "停止探测"

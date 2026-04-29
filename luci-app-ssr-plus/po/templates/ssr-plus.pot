@@ -2655,3 +2655,9 @@ msgstr ""
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:1527
 msgid "xudpProxyUDP443"
 msgstr ""
+
+msgid "Start Detection"
+msgstr ""
+
+msgid "Stop Detection"
+msgstr ""
