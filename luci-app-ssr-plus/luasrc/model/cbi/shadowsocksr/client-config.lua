@@ -326,16 +326,13 @@ end
 if is_finded("tuic-client") then
 	o:value("tuic", translate("TUIC"))
 end
-if is_finded("shadow-tls") and is_finded("sslocal") then
-	o:value("shadowtls", translate("Shadow-TLS"))
-end
-if is_finded("ipt2socks") then
-	o:value("socks5", translate("Socks5"))
-end
-if is_finded("redsocks2") then
-	o:value("tun", translate("Network Tunnel"))
-end
-local old_cfgvalue = o.cfgvalue
+	if is_finded("shadow-tls") and is_finded("sslocal") then
+		o:value("shadowtls", translate("Shadow-TLS"))
+	end
+	if is_finded("ipt2socks") then
+		o:value("socks5", translate("Socks5"))
+	end
+	local old_cfgvalue = o.cfgvalue
 o.cfgvalue = function(self, section)
     local val = self.map.uci:get("shadowsocksr", section, "type")
     if val == "ss-rust" or val == "ss-libev" then
@@ -359,20 +356,11 @@ o.write = function(self, section, value)
     end
 end
 
-o.description = translate("Using incorrect encryption mothod may causes service fail to start")
+	o.description = translate("Using incorrect encryption mothod may causes service fail to start")
 
-o = s:option(Value, "alias", translate("Alias(optional)"))
+	o = s:option(Value, "alias", translate("Alias(optional)"))
 
-o = s:option(ListValue, "iface", translate("Network interface to use"))
-for _, e in ipairs(luci.sys.net.devices()) do
-	if e ~= "lo" then
-		o:value(e)
-	end
-end
-o:depends("type", "tun")
-o.description = translate("Redirect traffic to this network interface")
-
--- 新增一个选择框，用于选择 Shadowsocks 具体版本（仅当节点类型为 ss 或其具体子类型时显示）
+	-- 新增一个选择框，用于选择 Shadowsocks 具体版本（仅当节点类型为 ss 或其具体子类型时显示）
 o = s:option(ListValue, "_ss_core", string.format("<b><span style='color:red;'>%s</span></b>", translatef("%s Node Use Version", "ShadowSocks")))
 o.description = translate("Selection ShadowSocks Node Use Version.")
 if has_ss_rust then

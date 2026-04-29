@@ -34,12 +34,12 @@ local function is_finded(e)
 end
 
 uci:foreach("shadowsocksr", "servers", function(s)
-	if s.alias then
+	if s.type ~= "tun" and s.alias then
 		server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.v2ray_protocol or s.type), s.alias}
-	elseif s.server and s.server_port then
+	elseif s.type ~= "tun" and s.server and s.server_port then
 		server_table[s[".name"]] = "[%s]:%s:%s" % {string.upper(s.v2ray_protocol or s.type), s.server, s.server_port}
 	end
-	if s.type then
+	if s.type and s.type ~= "tun" then
 		type_table[s[".name"]] = s.type
 	end
 end)

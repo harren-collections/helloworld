@@ -81,15 +81,4 @@ socks5)
 		;;
 	esac
 	;;
-*)
-	cat <<-EOF >>$argv1
-		redsocks {
-		bind = "0.0.0.0:$argv4";
-		type = direct;
-		interface = $argv3;
-		autoproxy = 0;
-		timeout = 10;
-		}
-	EOF
-	;;
 esac
