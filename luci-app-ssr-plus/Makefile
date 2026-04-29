@@ -101,7 +101,7 @@ endchoice
 
 choice
 	prompt "Shadowsocks Client Selection"
-	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client if aarch64 || x86_64
+	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client if aarch64 || loongarch64 || x86_64
 	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Client
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client
@@ -112,13 +112,13 @@ choice
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client
 	bool "Shadowsocks-rust"
-	depends on aarch64||arm||i386||mips||mipsel||x86_64
+	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
 	depends on !(TARGET_x86_geode||TARGET_x86_legacy)
 endchoice
 
 choice
 	prompt "Shadowsocks Server Selection"
-	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server if aarch64
+	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server if aarch64 || loongarch64
 	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Libev_Server if i386||x86_64||arm
 	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Server
 
@@ -130,7 +130,7 @@ choice
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server
 	bool "Shadowsocks-rust"
-	depends on aarch64||arm||i386||mips||mipsel||x86_64
+	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
 	depends on !(TARGET_x86_geode||TARGET_x86_legacy)
 endchoice
 
