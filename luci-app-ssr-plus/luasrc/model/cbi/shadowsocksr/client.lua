@@ -4,6 +4,7 @@
 
 local m, s, sec, o
 local uci = require "luci.model.uci".cursor()
+local URL = require "url"
 
 -- 获取 LAN IP 地址
 function lanip()
@@ -35,7 +36,18 @@ local function is_finded(e)
 	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
 end
 
-m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5 etc.</h3>"))
+local function clash_display_name(s)
+	if s.type ~= "clash" or not s.clash_url or s.clash_url == "" then
+		return nil
+	end
+	local ok, parsed = pcall(URL.parse, s.clash_url)
+	if ok and parsed and parsed.host then
+		return "[CLASH]:" .. parsed.host
+	end
+	return "[CLASH]"
+end
+
+m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/CLASH etc.</h3>"))
 m:section(SimpleSection).template = "shadowsocksr/status"
 
 local server_table = {}
@@ -44,6 +56,11 @@ uci:foreach("shadowsocksr", "servers", function(s)
 		server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.v2ray_protocol or s.type), s.alias}
 	elseif s.type ~= "tun" and s.server and s.server_port then
 		server_table[s[".name"]] = "[%s]:%s:%s" % {string.upper(s.v2ray_protocol or s.type), s.server, s.server_port}
+	elseif s.type ~= "tun" then
+		local display_name = clash_display_name(s)
+		if display_name then
+			server_table[s[".name"]] = display_name
+		end
 	end
 end)
 

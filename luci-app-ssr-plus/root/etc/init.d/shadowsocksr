@@ -21,6 +21,9 @@ PERSIST_DIR="/usr/share/nftables.d/ruleset-post"
 PERSIST_FILE="$PERSIST_DIR/99-shadowsocksr.nft"
 BACKUP_DIR="/etc/ssrplus/ssrplus-persist"
 BACKUP_FILE="$BACKUP_DIR/99-shadowsocksr.save"
+CLASH_CONFIG_DIR="/etc/ssrplus/clash"
+CLASH_API_PORT="16756"
+CLASH_OUTBOUND_MARK="255"
 # 设置 DNSMASQ_CONF_DIR 和 TMP_DNSMASQ_PATH
 if [ -f /etc/openwrt_release ]; then
     # 获取默认的 DNSMASQ 配置 ID
@@ -74,8 +77,9 @@ DNSMASQ_NFTSET=0
 
 switch_server=$1
 CRON_FILE=/etc/crontabs/root
-EXTRA_COMMANDS='reset'
-EXTRA_HELP="        reset   Reset to default settings"
+EXTRA_COMMANDS='reset clash_cache'
+EXTRA_HELP="        reset        Reset to default settings
+        clash_cache  Download and cache Clash node config"
 #extra_command "reset" "Reset to default settings"
 PS="/bin/busybox ps"
 
@@ -108,8 +112,104 @@ get_default_node_local_port() {
 	uci_get_by_type global default_node_local_port 1234
 }
 
+get_clash_api_secret() {
+	echo "${1}_ssrplus_clash"
+}
+
+get_clash_workdir() {
+	echo "$TMP_PATH/clash-$1"
+}
+
+get_clash_cache_file() {
+	echo "$CLASH_CONFIG_DIR/$1.yaml"
+}
+
+download_clash_config() {
+	local sid="$1"
+	local clash_url="$(uci_get_by_name "$sid" clash_url)"
+	local clash_user_agent="$(uci_get_by_name "$sid" clash_user_agent clash)"
+	local cache_file="$(get_clash_cache_file "$sid")"
+	local tmp_file="$TMP_PATH/clash-$sid.download.yaml"
+
+	[ -n "$clash_url" ] || {
+		echolog "Clash 节点未配置订阅 URL，无法启动。"
+		return 1
+	}
+
+	mkdir -p "$CLASH_CONFIG_DIR"
+	if curl -fsSL --connect-timeout 15 --retry 2 --insecure -A "$clash_user_agent" "$clash_url" -o "$tmp_file"; then
+		if yq -M -p yaml -o yaml -e 'has("proxies") or has("proxy-providers")' "$tmp_file" >/dev/null 2>&1; then
+			mv -f "$tmp_file" "$cache_file"
+			echolog "Clash 配置下载成功：$clash_url"
+			return 0
+		else
+			echolog "Clash 配置校验失败：$clash_url"
+			rm -f "$tmp_file"
+		fi
+	else
+		echolog "Clash 配置下载失败：$clash_url"
+	fi
+
+	if [ -s "$cache_file" ]; then
+		echolog "使用缓存的 Clash 配置继续启动。"
+		return 0
+	fi
+
+	return 1
+}
+
+clash_cache() {
+	local sid="$2"
+	[ -n "$sid" ] || sid="$1"
+	[ -n "$sid" ] || return 1
+	[ "$(uci_get_by_name "$sid" type)" = "clash" ] || return 1
+	mkdir -p "$TMP_PATH" "$CLASH_CONFIG_DIR"
+	download_clash_config "$sid"
+}
+
+prepare_clash_runtime_config() {
+	local sid="$1"
+	local local_port="$2"
+	local socks_port="$3"
+	local cache_file="$(get_clash_cache_file "$sid")"
+	local workdir="$(get_clash_workdir "$sid")"
+	local raw_file="$workdir/raw.yaml"
+	local overlay_file="$workdir/overlay.yaml"
+	local runtime_file="$workdir/config.yaml"
+	local clash_secret="$(get_clash_api_secret "$sid")"
+
+	[ -s "$cache_file" ] || return 1
+
+	mkdir -p "$workdir"
+	cp -f "$cache_file" "$raw_file"
+	yq -M -i 'del(.tun) | del(.listeners) | del(.redir-port) | del(.tproxy-port) | del(.socks-port) | del(.mixed-port) | del(.port) | del(.external-controller) | del(.secret) | del(.allow-lan)' "$raw_file"
+
+	cat >"$overlay_file" <<-EOF
+		redir-port: $local_port
+		tproxy-port: $local_port
+		external-controller: 127.0.0.1:$CLASH_API_PORT
+		secret: $clash_secret
+		allow-lan: false
+		routing-mark: $CLASH_OUTBOUND_MARK
+		profile:
+		  store-selected: true
+		tun:
+		  enable: false
+	EOF
+
+	if [ -n "$socks_port" ] && [ "$socks_port" != "0" ]; then
+		echo "socks-port: $socks_port" >>"$overlay_file"
+	fi
+
+	yq -M eval-all '. as $item ireduce ({}; . * $item )' "$raw_file" "$overlay_file" >"$runtime_file"
+}
+
 get_host_ip() {
 	local host=$(uci_get_by_name $1 server)
+	[ -n "$host" ] || {
+		echo ""
+		return
+	}
 	local ip=$host
 	if [ -z "$(echo $host | grep -E "([0-9]{1,3}[\.]){3}[0-9]{1,3}")" ]; then
 		if [ "$host" == "${host#*:[0-9a-fA-F]}" ]; then
@@ -795,7 +895,7 @@ start_local() {
 			echolog "Global Socks5:$($(first_type tuic-client) --version) Started!"
 		fi
 		;;
-	shadowtls)
+		shadowtls)
 			#respective config for global socks and main node
 			if [ "$_local" == "2" ]; then
 				gen_config_file $LOCAL_SERVER $type 4 "10${tmp_tcp_local_port}"
@@ -813,6 +913,10 @@ start_local() {
 				;;
 				esac
 			fi
+			;;
+		clash)
+			echolog "Global_Socks5:Clash total node is only supported when using Same as Global Server."
+			return 1
 			;;
 		socks5)
 			echolog "Global_Socks5:Socks5 transparent-only node cannot be used as generic Socks outbound."
@@ -839,6 +943,9 @@ get_udp_relay_mode() {
 
 	case "$type" in
 	ss|ssr|hysteria2)
+		echo "native"
+		;;
+	clash)
 		echo "native"
 		;;
 	trojan|tuic|shadowtls|socks5)
@@ -963,9 +1070,9 @@ Start_Run() {
 		fi
 		echolog "Main node:$($(first_type tuic-client) --version) Started!"
 		;;
-	shadowtls)
-		if [ -z "$socks_port" ]; then
-			gen_config_file $GLOBAL_SERVER $type 1 "10${tmp_tcp_local_port}"
+		shadowtls)
+			if [ -z "$socks_port" ]; then
+				gen_config_file $GLOBAL_SERVER $type 1 "10${tmp_tcp_local_port}"
 			gen_config_file $GLOBAL_SERVER $type 1 "10${tmp_tcp_local_port}" 0 chain
 		else
 			gen_config_file $GLOBAL_SERVER $type 1 "10${tmp_tcp_local_port}"
@@ -983,8 +1090,25 @@ Start_Run() {
 			ln_start_bin $(first_type sslocal) sslocal -c $tcp_config_file
 			echolog "Main node:shadow-tls chain-to $($(first_type sslocal) --version) Started!"
 			;;
-		esac
-		;;
+				esac
+			;;
+		clash)
+			local clash_socks_port=0
+			if [ "$_local" == "1" ] && [ "$LOCAL_SERVER" = "$GLOBAL_SERVER" ]; then
+				clash_socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
+			fi
+			download_clash_config "$GLOBAL_SERVER" || {
+				echolog "Main node:Clash 配置不可用，启动中止。"
+				return 1
+			}
+			prepare_clash_runtime_config "$GLOBAL_SERVER" "$tcp_port" "$clash_socks_port" || {
+				echolog "Main node:Clash 运行配置生成失败，启动中止。"
+				return 1
+			}
+			local clash_workdir="$(get_clash_workdir "$GLOBAL_SERVER")"
+			ln_start_bin $(first_type mihomo) ssr-retcp -d "$clash_workdir" -f "$clash_workdir/config.yaml"
+			echolog "Main node:Mihomo (Clash) Started!"
+			;;
 		socks5)
 			if [ "$(uci_get_by_name $GLOBAL_SERVER auth_enable 0)" == "1" ]; then
 				local auth="-a $(uci_get_by_name $GLOBAL_SERVER username) -k $(uci_get_by_name $GLOBAL_SERVER password)"
@@ -1048,15 +1172,17 @@ load_config() {
 	esac
 	case "$LOCAL_SERVER" in
 	nil)
-		_local="0"
-		;;
-	$GLOBAL_SERVER | same)
-		_local="1"
-		LOCAL_SERVER=$GLOBAL_SERVER
-		local_config_file=$TMP_PATH/tcp-udp-ssr-local.json
-		start_local
-		local_enable=0
-		;;
+			_local="0"
+			;;
+		"$GLOBAL_SERVER"|same)
+			_local="1"
+			LOCAL_SERVER=$GLOBAL_SERVER
+			local_config_file=$TMP_PATH/tcp-udp-ssr-local.json
+			if [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "clash" ]; then
+				start_local
+			fi
+			local_enable=0
+			;;
 	*)
 		_local="2"
 		local_config_file=$TMP_PATH/tcp-udp-ssr-local.json
@@ -1201,6 +1327,10 @@ start_server() {
 }
 
 start_switch() {
+	if [ "$(uci_get_by_name $GLOBAL_SERVER type)" = "clash" ]; then
+		echolog "提示：Clash 总节点不启用 SSR Plus 自动切换逻辑。"
+		return 0
+	fi
 	if [ "$(uci_get_by_type global enable_switch 0)" == "1" ]; then
 		if [ -z "$switch_server" ]; then
 			local switch_time=$(uci_get_by_type global switch_time)s
@@ -1329,7 +1459,7 @@ start_rules() {
 start() {
 	set_lock
 	echolog "----------start------------"
-	mkdir -p /var/run /var/lock /var/log $DNSMASQ_CONF_DIR $TMP_BIN_PATH $TMP_DNSMASQ_PATH
+	mkdir -p /var/run /var/lock /var/log $DNSMASQ_CONF_DIR $TMP_BIN_PATH $TMP_DNSMASQ_PATH $CLASH_CONFIG_DIR
 	echo "conf-dir=${TMP_DNSMASQ_PATH}" >"$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf"
 	check_run_environment
 	normalize_run_mode >/dev/null
@@ -1486,12 +1616,13 @@ stop() {
 		uci -q del "dhcp.@dnsmasq[0]._unused_ssrp_changed"
 		uci -q commit "dhcp"
 	fi
-	if [ -f "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" ]; then
-		rm -rf $DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf \
-			$TMP_DNSMASQ_PATH \
-			$TMP_PATH/*-ssr-*.json \
-			$TMP_PATH/ssr-server*.json \
-			$TMP_PATH/*-config-*.json
+		if [ -f "$DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf" ]; then
+			rm -rf $DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf \
+				$TMP_DNSMASQ_PATH \
+				$TMP_PATH/*-ssr-*.json \
+				$TMP_PATH/clash-* \
+				$TMP_PATH/ssr-server*.json \
+				$TMP_PATH/*-config-*.json
 
 		/etc/init.d/dnsmasq restart >/dev/null 2>&1
 	fi

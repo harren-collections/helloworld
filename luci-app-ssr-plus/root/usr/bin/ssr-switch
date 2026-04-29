@@ -49,6 +49,7 @@ check_proxy() {
 }
 
 test_proxy() {
+	[ "$(uci_get_by_name $1 type)" = "clash" ] && return 1
 	local servername=$(uci_get_by_name $1 server)
 	local serverport=$(uci_get_by_name $1 server_port)
 	ipset add whitelist $servername 2>/dev/null
@@ -71,6 +72,7 @@ search_proxy() {
 	let server_count=server_count+1
 	[ "$normal_flag" == "1" -a "$server_count" -le "$server_locate" ] && return 0
 	[ "$(uci_get_by_name $1 switch_enable 0)" != "1" ] && return 1
+	[ "$(uci_get_by_name $1 type)" = "clash" ] && return 1
 	[ $ENABLE_SERVER != nil ] && return 0
 	[ "$1" == "$CURRENT_SERVER" ] && return 0
 	local servername=$(uci_get_by_name $1 server)

@@ -90,10 +90,10 @@ msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:38
 msgid ""
-"<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5 "
+"<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/CLASH "
 "etc.</h3>"
 msgstr ""
-"<h3>支持 SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5 等协"
+"<h3>支持 SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/CLASH 等协"
 "议。</h3>"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:160
@@ -2915,3 +2915,48 @@ msgstr "停止探测"
 
 msgid "Default Node Local Port"
 msgstr "节点默认本地端口"
+
+msgid "Clash/Mihomo"
+msgstr "Clash/Mihomo"
+
+msgid "Clash Subscription URL"
+msgstr "Clash 订阅链接"
+
+msgid "Clash User-Agent"
+msgstr "Clash User-Agent"
+
+msgid "Lightweight Socks5 transparent proxy nodes and Clash total nodes are not available here. Use Xray Socks for generic Socks outbound."
+msgstr "轻量 Socks5 透明代理节点和 Clash 总节点不能在这里作为上游使用。通用 Socks 出站请使用 Xray Socks。"
+
+msgid "Panel"
+msgstr "面板"
+
+msgid "Clash Panel"
+msgstr "Clash 面板"
+
+msgid "This panel is available only when the current Clash total node is active."
+msgstr "该面板仅在当前 Clash 总节点已启用时可用。"
+
+msgid "No switchable proxy groups found."
+msgstr "未找到可切换的代理组。"
+
+msgid "Switching..."
+msgstr "正在切换..."
+
+msgid "Switched successfully."
+msgstr "切换成功。"
+
+msgid "Switch failed."
+msgstr "切换失败。"
+
+msgid "Loading..."
+msgstr "加载中..."
+
+msgid "Ready."
+msgstr "就绪。"
+
+msgid "This Clash total node is not active. Apply this node first."
+msgstr "该 Clash 总节点当前未启用，请先应用该节点。"
+
+msgid "Include Mihomo (Clash Support)"
+msgstr "包含 Mihomo（Clash 支持）"

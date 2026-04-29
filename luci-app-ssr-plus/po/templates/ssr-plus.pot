@@ -88,7 +88,7 @@ msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:38
 msgid ""
-"<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5 "
+"<h3>Support SS/SSR/V2RAY/XRAY/TROJAN/TUIC/HYSTERIA2/NAIVEPROXY/SOCKS5/CLASH "
 "etc.</h3>"
 msgstr ""
 
@@ -2663,4 +2663,49 @@ msgid "Stop Detection"
 msgstr ""
 
 msgid "Default Node Local Port"
+msgstr ""
+
+msgid "Clash/Mihomo"
+msgstr ""
+
+msgid "Clash Subscription URL"
+msgstr ""
+
+msgid "Clash User-Agent"
+msgstr ""
+
+msgid "Lightweight Socks5 transparent proxy nodes and Clash total nodes are not available here. Use Xray Socks for generic Socks outbound."
+msgstr ""
+
+msgid "Panel"
+msgstr ""
+
+msgid "Clash Panel"
+msgstr ""
+
+msgid "This panel is available only when the current Clash total node is active."
+msgstr ""
+
+msgid "No switchable proxy groups found."
+msgstr ""
+
+msgid "Switching..."
+msgstr ""
+
+msgid "Switched successfully."
+msgstr ""
+
+msgid "Switch failed."
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Ready."
+msgstr ""
+
+msgid "This Clash total node is not active. Apply this node first."
+msgstr ""
+
+msgid "Include Mihomo (Clash Support)"
 msgstr ""

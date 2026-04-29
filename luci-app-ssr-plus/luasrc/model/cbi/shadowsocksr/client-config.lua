@@ -298,6 +298,14 @@ if not sid or m.uci:get("shadowsocksr", sid) ~= "servers" then
 end
 -- 保存&应用成功后跳转到节点列表
 set_apply_on_parse(m)
+local old_after_save = m.on_after_save
+m.on_after_save = function(self)
+	if old_after_save then old_after_save(self) end
+	local node_type = self.uci:get("shadowsocksr", sid, "type")
+	if node_type == "clash" then
+		luci.sys.call(string.format("/etc/init.d/shadowsocksr clash_cache %s >/dev/null 2>&1 &", sid))
+	end
+end
 
 -- [[ Servers Setting ]]--
 s = m:section(NamedSection, sid, "servers")
@@ -320,12 +328,15 @@ end
 if has_ss_rust or has_ss_libev then
     o:value("ss", translate("ShadowSocks"))
 end
-if is_finded("naive") then
-	o:value("naiveproxy", translate("NaiveProxy"))
-end
-if is_finded("tuic-client") then
-	o:value("tuic", translate("TUIC"))
-end
+	if is_finded("naive") then
+		o:value("naiveproxy", translate("NaiveProxy"))
+	end
+	if is_finded("mihomo") then
+		o:value("clash", translate("Clash/Mihomo"))
+	end
+	if is_finded("tuic-client") then
+		o:value("tuic", translate("TUIC"))
+	end
 	if is_finded("shadow-tls") and is_finded("sslocal") then
 		o:value("shadowtls", translate("Shadow-TLS"))
 	end
@@ -359,6 +370,16 @@ end
 	o.description = translate("Using incorrect encryption mothod may causes service fail to start")
 
 	o = s:option(Value, "alias", translate("Alias(optional)"))
+
+	o = s:option(Value, "clash_url", translate("Clash Subscription URL"))
+	o.placeholder = "https://example.com/config.yaml"
+	o.rmempty = false
+	o:depends("type", "clash")
+
+	o = s:option(Value, "clash_user_agent", translate("Clash User-Agent"))
+	o.default = "clash"
+	o.rmempty = false
+	o:depends("type", "clash")
 
 	-- 新增一个选择框，用于选择 Shadowsocks 具体版本（仅当节点类型为 ss 或其具体子类型时显示）
 o = s:option(ListValue, "_ss_core", string.format("<b><span style='color:red;'>%s</span></b>", translatef("%s Node Use Version", "ShadowSocks")))
@@ -416,11 +437,11 @@ o:depends("type", "ssr")
 o:depends("type", "ss")
 o:depends("type", "v2ray")
 o:depends("type", "trojan")
-o:depends("type", "naiveproxy")
-o:depends("type", "hysteria2")
-o:depends("type", "tuic")
-o:depends("type", "shadowtls")
-o:depends("type", "socks5")
+	o:depends("type", "naiveproxy")
+	o:depends("type", "hysteria2")
+	o:depends("type", "tuic")
+	o:depends("type", "shadowtls")
+	o:depends("type", "socks5")
 
 o = s:option(Value, "server_port", translate("Server Port"))
 o.datatype = "port"
@@ -429,11 +450,11 @@ o:depends("type", "ssr")
 o:depends("type", "ss")
 o:depends("type", "v2ray")
 o:depends("type", "trojan")
-o:depends("type", "naiveproxy")
-o:depends("type", "hysteria2")
-o:depends("type", "tuic")
-o:depends("type", "shadowtls")
-o:depends("type", "socks5")
+	o:depends("type", "naiveproxy")
+	o:depends("type", "hysteria2")
+	o:depends("type", "tuic")
+	o:depends("type", "shadowtls")
+	o:depends("type", "socks5")
 
 o = s:option(Flag, "auth_enable", translate("Enable Authentication"))
 o.rmempty = false

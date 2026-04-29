@@ -3,6 +3,77 @@
 module("luci.controller.shadowsocksr", package.seeall)
 require "nixio"
 require "nixio.fs"
+require "luci.util"
+require "luci.template"
+local json = require "luci.jsonc"
+local uci = require "luci.model.uci".cursor()
+
+local CLASH_API_PORT = "16756"
+
+local function urlencode(str)
+	if not str then return "" end
+	return tostring(str):gsub("[^%w%-_%.~]", function(c)
+		return string.format("%%%02X", string.byte(c))
+	end)
+end
+
+local function get_clash_secret(sid)
+	return sid .. "_ssrplus_clash"
+end
+
+local function get_clash_cache_file(sid)
+	return "/etc/ssrplus/clash/" .. sid .. ".yaml"
+end
+
+local function is_active_clash_node(sid)
+	if not sid then return false end
+	if uci:get("shadowsocksr", sid) ~= "servers" then return false end
+	if uci:get("shadowsocksr", sid, "type") ~= "clash" then return false end
+	if uci:get_first("shadowsocksr", "global", "global_server") ~= sid then return false end
+	return luci.sys.call("busybox ps -w | grep ssr-retcp | grep -v grep >/dev/null") == 0
+end
+
+local function clash_api_request(sid, method, path, body)
+	if not is_active_clash_node(sid) then
+		return nil
+	end
+	local secret = get_clash_secret(sid)
+	local cmd = string.format(
+		"curl -sL -m 5 --retry 1 -H %s -H %s -X %s http://127.0.0.1:%s%s %s",
+		luci.util.shellquote("Content-Type: application/json"),
+		luci.util.shellquote("Authorization: Bearer " .. secret),
+		method,
+		CLASH_API_PORT,
+		path,
+		body and ("-d " .. luci.util.shellquote(body)) or ""
+	)
+	local output = luci.sys.exec(cmd)
+	if not output or output == "" then
+		return nil
+	end
+	return output
+end
+
+local function parse_clash_groups(raw)
+	local info = json.parse(raw or "")
+	local proxies = info and info.proxies or nil
+	local groups = {}
+	if type(proxies) ~= "table" then
+		return groups
+	end
+	for name, value in pairs(proxies) do
+		if type(value) == "table" and type(value.all) == "table" and #value.all > 0 then
+			groups[#groups + 1] = {
+				name = name,
+				type = value.type or "",
+				now = value.now or "",
+				all = value.all
+			}
+		end
+	end
+	table.sort(groups, function(a, b) return tostring(a.name) < tostring(b.name) end)
+	return groups
+end
 
 function index()
 	if not nixio.fs.access("/etc/config/shadowsocksr") then
@@ -30,6 +101,10 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "reset"}, call("act_reset"))
 	entry({"admin", "services", "shadowsocksr", "restart"}, call("act_restart"))
 	entry({"admin", "services", "shadowsocksr", "delete"}, call("act_delete"))
+	entry({"admin", "services", "shadowsocksr", "clash_panel"}, call("clash_panel")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "clash_groups"}, call("clash_groups")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "clash_switch"}, call("clash_switch")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "clash_refresh"}, call("clash_refresh")).leaf = true
 	--[[Backup]]
 	entry({"admin", "services", "shadowsocksr", "backup"}, call("create_backup")).leaf = true
 end
@@ -45,6 +120,79 @@ function act_status()
 	e.running = luci.sys.call("busybox ps -w | grep ssr-retcp | grep -v grep >/dev/null") == 0
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(e)
+end
+
+function clash_panel()
+	local sid = luci.http.formvalue("sid")
+	if uci:get("shadowsocksr", sid) ~= "servers" or uci:get("shadowsocksr", sid, "type") ~= "clash" then
+		luci.http.status(404, "Not Found")
+		return
+	end
+	luci.template.render("shadowsocksr/clash_panel", {
+		sid = sid,
+		alias = uci:get("shadowsocksr", sid, "alias") or sid
+	})
+end
+
+function clash_groups()
+	local sid = luci.http.formvalue("sid")
+	local groups = {}
+	local active = is_active_clash_node(sid)
+	if active then
+		local raw = clash_api_request(sid, "GET", "/proxies")
+		if raw then
+			groups = parse_clash_groups(raw)
+		end
+	end
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		active = active,
+		groups = groups
+	})
+end
+
+function clash_switch()
+	local sid = luci.http.formvalue("sid")
+	local group = luci.http.formvalue("group")
+	local name = luci.http.formvalue("name")
+	if not sid or not group or not name then
+		luci.http.status(400, "Bad Request")
+		return
+	end
+	if not is_active_clash_node(sid) then
+		luci.http.status(409, "Conflict")
+		luci.http.prepare_content("application/json")
+		luci.http.write_json({success = false, message = "inactive"})
+		return
+	end
+	local body = string.format('{"name":"%s"}', tostring(name):gsub('"', '\\"'))
+	local path = "/proxies/" .. urlencode(group)
+	local ret = clash_api_request(sid, "PUT", path, body)
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({success = ret ~= nil})
+end
+
+function clash_refresh()
+	local sid = luci.http.formvalue("sid")
+	if not sid or uci:get("shadowsocksr", sid) ~= "servers" or uci:get("shadowsocksr", sid, "type") ~= "clash" then
+		luci.http.status(400, "Bad Request")
+		luci.http.prepare_content("application/json")
+		luci.http.write_json({success = false})
+		return
+	end
+	local cmd = string.format("/etc/init.d/shadowsocksr clash_cache %s >/dev/null 2>&1", luci.util.shellquote(sid))
+	local ok = luci.sys.call(cmd) == 0
+	local reapplied = false
+	if ok and is_active_clash_node(sid) then
+		luci.sys.call("/etc/init.d/shadowsocksr restart >/dev/null 2>&1 &")
+		reapplied = true
+	end
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		success = ok,
+		cached = nixio.fs.access(get_clash_cache_file(sid)),
+		reapplied = reapplied
+	})
 end
 
 function act_ping()
@@ -198,6 +346,10 @@ function check_port()
 	local use_nft = luci.sys.call("command -v nft >/dev/null") == 0
 
 	uci:foreach("shadowsocksr", "servers", function(s)
+		if s.type == "clash" then
+			retstring = retstring .. string.format("<font><b style='color:gray'>[%s] Clash panel node.</b></font><br />", s.alias or s[".name"])
+			return
+		end
 		if s.alias then
 			server_name = s.alias
 		elseif s.server and s.server_port then

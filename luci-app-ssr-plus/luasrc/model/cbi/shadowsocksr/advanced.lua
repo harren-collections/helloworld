@@ -1,6 +1,7 @@
 local m, s, o
 local cbi = require "luci.cbi"
 local uci = require "luci.model.uci".cursor()
+local URL = require "url"
 
 -- 获取 LAN IP 地址
 function lanip()
@@ -33,11 +34,27 @@ local function is_finded(e)
 	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
 end
 
+local function clash_display_name(s)
+	if s.type ~= "clash" or not s.clash_url or s.clash_url == "" then
+		return nil
+	end
+	local ok, parsed = pcall(URL.parse, s.clash_url)
+	if ok and parsed and parsed.host then
+		return "[CLASH]:" .. parsed.host
+	end
+	return "[CLASH]"
+end
+
 uci:foreach("shadowsocksr", "servers", function(s)
 	if s.type ~= "tun" and s.alias then
 		server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.v2ray_protocol or s.type), s.alias}
 	elseif s.type ~= "tun" and s.server and s.server_port then
 		server_table[s[".name"]] = "[%s]:%s:%s" % {string.upper(s.v2ray_protocol or s.type), s.server, s.server_port}
+	elseif s.type ~= "tun" then
+		local display_name = clash_display_name(s)
+		if display_name then
+			server_table[s[".name"]] = display_name
+		end
 	end
 	if s.type and s.type ~= "tun" then
 		type_table[s[".name"]] = s.type
@@ -132,7 +149,7 @@ end
 -- [[ SOCKS5 Proxy ]]--
 s = m:section(TypedSection, "socks5_proxy", translate("Global SOCKS5 Proxy Server"))
 s.anonymous = true
-s.description = translate("Lightweight Socks5 transparent proxy nodes are not available here. Use Xray Socks for generic Socks outbound.")
+s.description = translate("Lightweight Socks5 transparent proxy nodes and Clash total nodes are not available here. Use Xray Socks for generic Socks outbound.")
 
 -- Enable/Disable Option
 o = s:option(Flag, "enabled", translate("Enable"))
@@ -143,7 +160,7 @@ o.rmempty = false
 o = s:option(ListValue, "server", translate("Server"))
 o:value("same", translate("Same as Global Server"))
 for _, key in pairs(key_table) do
-	if type_table[key] ~= "socks5" then
+	if type_table[key] ~= "socks5" and type_table[key] ~= "clash" then
 		o:value(key, server_table[key])
 	end
 end

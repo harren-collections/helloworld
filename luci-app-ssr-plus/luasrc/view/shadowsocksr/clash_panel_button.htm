@@ -1,0 +1,44 @@
+<%+cbi/valueheader%>
+<%
+local stype = self.map:get(section, "type")
+-%>
+<script type="text/javascript">
+if (typeof(window.ssrClashRefreshSubscription) !== "function") {
+	window.ssrClashRefreshSubscription = function(btn, sid) {
+		var original = btn.value;
+		btn.disabled = true;
+		btn.value = '<%:Refresh...%>';
+		XHR.get('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_refresh")%>', {
+			sid: sid
+		}, function(x, result) {
+			btn.disabled = false;
+			btn.value = original;
+			if (result && result.success) {
+				btn.value = result.reapplied ? '<%:Reapply%>' : '<%:Refresh OK!%>';
+				setTimeout(function() { btn.value = original; }, 1200);
+			} else {
+				btn.value = '<%:Refresh Error!%>';
+				setTimeout(function() { btn.value = original; }, 1500);
+			}
+		});
+		return false;
+	}
+}
+</script>
+<% if stype == "clash" then %>
+<input
+	type="button"
+	class="btn cbi-button"
+	value="<%:Refresh Data%>"
+	title="<%:Refresh Data%>"
+	onclick="return ssrClashRefreshSubscription(this, '<%=section%>');" />
+<input
+	type="button"
+	class="btn cbi-button cbi-button-apply"
+	value="<%:Panel%>"
+	title="<%:Panel%>"
+	onclick="window.open('<%=luci.dispatcher.build_url('admin', 'services', 'shadowsocksr', 'clash_panel')%>?sid=<%=section%>', '_blank');" />
+<% else %>
+-
+<% end %>
+<%+cbi/valuefooter%>

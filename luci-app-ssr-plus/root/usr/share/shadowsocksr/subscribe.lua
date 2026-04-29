@@ -197,6 +197,39 @@ local function isCompleteJSON(str)
 	local success, _ = pcall(jsonParse, str)
 	return success
 end
+
+local function isClashYAML(str)
+	if type(str) ~= "string" or str:match("^%s*$") then
+		return false
+	end
+	local has_proxies = str:match("(^|\n)%s*proxies%s*:") or str:match("(^|\n)%s*proxy%-providers%s*:")
+	return has_proxies ~= nil
+end
+
+local function processClashSubscription(url)
+	local ok, parsed = pcall(URL.parse, url)
+	if not ok or not parsed or not parsed.host then
+		return nil
+	end
+
+	local alias = "Clash_" .. parsed.host
+	local server_port = parsed.port or ((parsed.scheme == "http") and "80" or "443")
+	local result = {
+		type = "clash",
+		server = parsed.host,
+		server_port = server_port,
+		clash_url = url,
+		clash_user_agent = user_agent,
+		raw_alias = alias,
+		alias = alias
+	}
+
+	local saved_alias = result.alias
+	result.alias = nil
+	result.hashkey = md5(jsonStringify(result) .. "_" .. (saved_alias or ""))
+	result.alias = saved_alias
+	return result
+end
 -- 处理数据
 local function processData(szType, content, cfgid)
 	local result = {type = szType, kcp_param = '--nocomp'}
@@ -1377,9 +1410,19 @@ local execute = function()
 				local index = #nodeResult
 				local nodes, szType
 
-				-- SSD 似乎是这种格式 ssd:// 开头的
-				if raw:find('ssd://') then
-					szType = 'ssd'
+					if isClashYAML(raw) then
+						local result = processClashSubscription(url)
+						if result and not check_filer(result) and not cache[groupHash][result.hashkey] then
+							result.grouphashkey = groupHash
+							table.insert(nodeResult[index], result)
+							cache[groupHash][result.hashkey] = result
+							log('成功导入 Clash 总节点: ' .. result.alias)
+						else
+							log('丢弃无效 Clash 总节点: ' .. url)
+						end
+					-- SSD 似乎是这种格式 ssd:// 开头的
+					elseif raw:find('ssd://') then
+						szType = 'ssd'
 					local nEnd = select(2, raw:find('ssd://'))
 					nodes = base64Decode(raw:sub(nEnd + 1, #raw))
 					nodes = jsonParse(nodes)
@@ -1438,12 +1481,12 @@ local execute = function()
 							-- log(result)
 							if result then
 								-- 中文做地址的 也没有人拿中文域名搞，就算中文域也有Puny Code SB 机场
-								if not result.server or not result.server_port
-									or result.server == "127.0.0.1"
-									or result.alias == "NULL"
-									or check_filer(result)
-									or result.server:match("[^0-9a-zA-Z%-_%.%s]")
-									or cache[groupHash][result.hashkey] then
+									if not result.server or not result.server_port
+										or (result.type ~= "clash" and result.server == "127.0.0.1")
+										or result.alias == "NULL"
+										or check_filer(result)
+										or (result.type ~= "clash" and result.server:match("[^0-9a-zA-Z%-_%.%s]"))
+										or cache[groupHash][result.hashkey] then
 									log('丢弃无效节点: ' .. result.alias)
 								else
 									-- 暂存节点

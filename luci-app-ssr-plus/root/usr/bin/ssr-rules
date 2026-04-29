@@ -436,6 +436,7 @@ ipset_iptables() {
 
 	$IPT -N SS_SPEC_WAN_AC 2>/dev/null
 	$IPT -F SS_SPEC_WAN_AC
+	$IPT -I SS_SPEC_WAN_AC -m mark --mark 255 -j RETURN
 
 	$IPT -I SS_SPEC_WAN_AC -p tcp --dport 53 -d 127.0.0.0/8 -j RETURN
 	$IPT -I SS_SPEC_WAN_AC -p tcp ! --dport 53 -d "$server" -j RETURN
@@ -662,10 +663,11 @@ ac_rule_nft() {
 	case "$OUTPUT" in
 	1)
 		# Create ss_spec_output tcp chain
-		if ! $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
-			$NFT add chain inet ss_spec ss_spec_output '{ type nat hook output priority 0; policy accept; }'
-		fi
-		$NFT flush chain inet ss_spec ss_spec_output 2>/dev/null
+			if ! $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
+				$NFT add chain inet ss_spec ss_spec_output '{ type nat hook output priority 0; policy accept; }'
+			fi
+			$NFT flush chain inet ss_spec ss_spec_output 2>/dev/null
+			$NFT add rule inet ss_spec ss_spec_output meta mark 255 return 2>/dev/null
 		
 		# Exclude special local addresses
 		if $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
@@ -686,10 +688,11 @@ ac_rule_nft() {
 		;;
 	2)
 		# Create ss_spec_output tcp chain
-		if ! $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
-			$NFT add chain inet ss_spec ss_spec_output '{ type nat hook output priority 0; policy accept; }'
-		fi
-		$NFT flush chain inet ss_spec ss_spec_output 2>/dev/null
+			if ! $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
+				$NFT add chain inet ss_spec ss_spec_output '{ type nat hook output priority 0; policy accept; }'
+			fi
+			$NFT flush chain inet ss_spec ss_spec_output 2>/dev/null
+			$NFT add rule inet ss_spec ss_spec_output meta mark 255 return 2>/dev/null
 		
 		# Exclude special local addresses
 		if $NFT list chain inet ss_spec ss_spec_output >/dev/null 2>&1; then
@@ -703,11 +706,12 @@ ac_rule_nft() {
 		for ip in $(gen_spec_iplist); do
 			[ -n "$ip" ] && $NFT add element inet ss_spec ssr_gen_router "{ $ip }" 2>/dev/null
 		done
-		if ! $NFT list chain inet ss_spec ss_spec_router >/dev/null 2>&1; then
-			$NFT add chain inet ss_spec ss_spec_router 2>/dev/null
-		fi
-		$NFT flush chain inet ss_spec ss_spec_router 2>/dev/null
-		$NFT add rule inet ss_spec ss_spec_router ip daddr @ssr_gen_router return 2>/dev/null
+			if ! $NFT list chain inet ss_spec ss_spec_router >/dev/null 2>&1; then
+				$NFT add chain inet ss_spec ss_spec_router 2>/dev/null
+			fi
+			$NFT flush chain inet ss_spec ss_spec_router 2>/dev/null
+			$NFT add rule inet ss_spec ss_spec_router meta mark 255 return 2>/dev/null
+			$NFT add rule inet ss_spec ss_spec_router ip daddr @ssr_gen_router return 2>/dev/null
 		$NFT add rule inet ss_spec ss_spec_router jump ss_spec_wan_fw 2>/dev/null
 		$NFT add rule inet ss_spec ss_spec_output $TCP_EXT_ARGS jump ss_spec_router comment "\"$TAG\"" 2>/dev/null
 		;;
@@ -790,10 +794,11 @@ ac_rule_iptables() {
 			create ssr_gen_router hash:net
 			$(gen_spec_iplist | sed -e "s/^/add ssr_gen_router /")
 		EOF
-		$IPT -N SS_SPEC_ROUTER 2>/dev/null
-		$IPT -F SS_SPEC_ROUTER 2>/dev/null
-		$IPT -A SS_SPEC_ROUTER -m set --match-set ssr_gen_router dst -j RETURN && \
-		$IPT -A SS_SPEC_ROUTER -j SS_SPEC_WAN_FW
+			$IPT -N SS_SPEC_ROUTER 2>/dev/null
+			$IPT -F SS_SPEC_ROUTER 2>/dev/null
+			$IPT -A SS_SPEC_ROUTER -m mark --mark 255 -j RETURN && \
+			$IPT -A SS_SPEC_ROUTER -m set --match-set ssr_gen_router dst -j RETURN && \
+			$IPT -A SS_SPEC_ROUTER -j SS_SPEC_WAN_FW
 		$IPT -I OUTPUT 1 -p tcp -m comment --comment "$TAG" -j SS_SPEC_ROUTER
 		;;
 	esac

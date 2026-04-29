@@ -6,9 +6,27 @@ require "luci.dispatcher"
 require "luci.model.uci"
 local cbi = require "luci.cbi"
 local uci = require "luci.model.uci".cursor()
+local URL = require "url"
 
 local m, s, o, node
 local server_count = 0
+
+local function clash_host_port(section)
+	local clash_url = uci:get("shadowsocksr", section, "clash_url")
+	if not clash_url or clash_url == "" then
+		return nil, nil
+	end
+	local ok, parsed = pcall(URL.parse, clash_url)
+	if not ok or not parsed then
+		return nil, nil
+	end
+	local host = parsed.host
+	local port = parsed.port
+	if not port or port == "" then
+		port = (parsed.scheme == "http") and "80" or "443"
+	end
+	return host, port
+end
 
 -- 确保正确判断程序是否存在
 local function is_finded(e)
@@ -200,18 +218,37 @@ function o.cfgvalue(...)
 end
 
 o = s:option(DummyValue, "server_port", translate("Server Port"))
-function o.cfgvalue(...)
-	return Value.cfgvalue(...) or "N/A"
+function o.cfgvalue(self, section)
+	local stype = m:get(section, "type")
+	if stype == "clash" then
+		local _, port = clash_host_port(section)
+		return port or "N/A"
+	end
+	return Value.cfgvalue(self, section) or "N/A"
 end
 
 o = s:option(DummyValue, "server_port", translate("Socket Connected"))
 o.template = "shadowsocksr/socket"
 o.width = "10%"
+function o.cfgvalue(self, section)
+	local stype = m:get(section, "type")
+	if stype == "clash" then
+		return "N/A"
+	end
+	return Value.cfgvalue(self, section)
+end
 o.render = function(self, section, scope)
-	self.transport = s:cfgvalue(section).transport
-	if self.transport == 'ws' then
-		self.ws_path = s:cfgvalue(section).ws_path
-		self.tls = s:cfgvalue(section).tls
+	local stype = m:get(section, "type")
+	if stype == "clash" then
+		self.transport = ""
+		self.ws_path = ""
+		self.tls = ""
+	else
+		self.transport = s:cfgvalue(section).transport
+		if self.transport == 'ws' then
+			self.ws_path = s:cfgvalue(section).ws_path
+			self.tls = s:cfgvalue(section).tls
+		end
 	end
 	DummyValue.render(self, section, scope)
 end
@@ -219,6 +256,17 @@ end
 o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocksr/ping"
 o.width = "10%"
+function o.cfgvalue(self, section)
+	local stype = m:get(section, "type")
+	if stype == "clash" then
+		return "N/A"
+	end
+	return Value.cfgvalue(self, section)
+end
+
+o = s:option(DummyValue, "_clash_panel", translate("Panel"))
+o.template = "shadowsocksr/clash_panel_button"
+o.width = "8%"
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 
 

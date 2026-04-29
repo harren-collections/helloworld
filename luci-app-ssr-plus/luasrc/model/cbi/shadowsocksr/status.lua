@@ -15,6 +15,10 @@ local ad_count = 0
 local ip_count = 0
 local Process_list = luci.sys.exec("busybox ps -w")
 local uci = require "luci.model.uci".cursor()
+local global_server = uci:get_first("shadowsocksr", "global", "global_server", "nil")
+local global_type = global_server ~= "nil" and (uci:get("shadowsocksr", global_server, "type") or "") or ""
+local global_socks_enabled = uci:get_first("shadowsocksr", "socks5_proxy", "enabled", "0") == "1"
+local global_socks_server = uci:get_first("shadowsocksr", "socks5_proxy", "server", "nil")
 -- html constants
 font_blue = [[<b style=color:green>]]
 style_blue = [[<b style=color:red>]]
@@ -96,6 +100,14 @@ if Process_list:find("local.udp.ssr.retcp") then
 	reudp_run = 1
 	redir_run = 1
 	sock5_run = 1
+end
+
+if global_type == "clash" and Process_list:find("ssr%-retcp") then
+	redir_run = 1
+	reudp_run = 1
+	if global_socks_enabled and (global_socks_server == "same" or global_socks_server == global_server) then
+		sock5_run = 1
+	end
 end
 
 if Process_list:find("kcptun.client") then
