@@ -1610,11 +1610,6 @@ o = s:option(Flag, "switch_enable", translate("Enable Auto Switch"))
 o.rmempty = false
 o.default = "1"
 
-o = s:option(Value, "local_port", translate("Local Port"))
-o.datatype = "port"
-o.default = 1234
-o.rmempty = false
-
 if is_finded("kcptun-client") then
 	o = s:option(Flag, "kcp_enable", translate("KcpTun Enable"))
 	o.rmempty = true

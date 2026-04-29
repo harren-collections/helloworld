@@ -2912,3 +2912,6 @@ msgstr "开始探测"
 
 msgid "Stop Detection"
 msgstr "停止探测"
+
+msgid "Default Node Local Port"
+msgstr "节点默认本地端口"

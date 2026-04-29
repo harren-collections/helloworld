@@ -79,6 +79,11 @@ o.datatype = "uinteger"
 o:depends("enable_switch", "1")
 o.default = 3
 
+o = s:option(Value, "default_node_local_port", translate("Default Node Local Port"))
+o.datatype = "port"
+o.default = 1234
+o.rmempty = false
+
 o = s:option(Value, "gfwlist_url", translate("gfwlist Update url"))
 o:value("https://fastly.jsdelivr.net/gh/YW5vbnltb3Vz/domain-list-community@release/gfwlist.txt", translate("v2fly/domain-list-community"))
 o:value("https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/gfw.txt", translate("Loyalsoldier/v2ray-rules-dat"))

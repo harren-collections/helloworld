@@ -31,6 +31,7 @@ local server = ucursor:get_all("shadowsocksr", server_section)
 local socks_server = ucursor:get_all("shadowsocksr", "@socks5_proxy[0]") or {}
 local xray_fragment = ucursor:get_all("shadowsocksr", "@global_xray_fragment[0]") or {}
 local xray_noise = ucursor:get_all("shadowsocksr", "@xray_noise_packets[0]") or {}
+local default_node_local_port = ucursor:get_first("shadowsocksr", "global", "default_node_local_port", "1234")
 local outbound_settings = nil
 local xray_version = nil
 local xray_version_val = 0
@@ -39,6 +40,7 @@ local node_id = server_section
 local remarks = server.alias or ""
 local b64decode = nixio.bin.b64decode
 local b64encode = nixio.bin.b64encode
+local effective_node_local_port = tonumber(server.local_port) or tonumber(default_node_local_port) or 1234
 
 if server.type == "ss-rust" or server.type == "ss-libev" then
     server.type = "ss"
@@ -874,7 +876,7 @@ local chain_sslocal = {
 	locals = local_port ~= "0" and {
 		{
 			local_address = "0.0.0.0",
-			local_port = (chain_local_port == "0" and tonumber(server.local_port) or tonumber(chain_local_port)),
+			local_port = (chain_local_port == "0" and effective_node_local_port or tonumber(chain_local_port)),
 			mode = (proto:find("tcp,udp") and "tcp_and_udp") or proto .. "_only",
 			protocol = "redir",
 			tcp_redir = "redirect",
@@ -903,7 +905,7 @@ local chain_sslocal = {
 local chain_vmess = {
 	inbounds = (local_port ~= "0") and {
 		{
-			port = (chain_local_port == "0" and tonumber(server.local_port) or tonumber(chain_local_port)),
+			port = (chain_local_port == "0" and effective_node_local_port or tonumber(chain_local_port)),
 			protocol = "dokodemo-door",
 			settings = {
 				network = proto,
