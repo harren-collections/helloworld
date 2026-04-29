@@ -85,10 +85,12 @@ usage() {
 		    -e <extra_options>      extra options for iptables
 		    -o                      apply the rules to the OUTPUT chain
 		    -O                      apply the global rules to the OUTPUT chain
-		    -u                      enable udprelay mode, TPROXY is required
-		    -U                      enable udprelay mode, using different IP
-		                            and ports for TCP and UDP
-		    -f                      flush the rules
+			    -u                      enable udprelay mode, TPROXY is required
+			    -U                      enable udprelay mode, using different IP
+			                            and ports for TCP and UDP
+			    -y                      disable all auxiliary UDP rules when UDP
+			                            transparent proxy is unavailable
+			    -f                      flush the rules
 		    -g                      gfwlist mode
 		    -r                      router mode
 		    -z                      all mode
@@ -613,7 +615,7 @@ ac_rule_nft() {
 	fi
 
 	# Block UDP port 443 when TPROXY not Enable
-	if [ -z "$TPROXY" ]; then
+	if [ -z "$TPROXY" ] && [ "$DISABLE_UDP_RULES" != "1" ]; then
 		# Add UDP 443 block rule
 		if [ -z "$Interface" ]; then
 			if [ -n "$MATCH_SET" ]; then
@@ -735,7 +737,7 @@ ac_rule_iptables() {
 	EOF
 
 	# Block UDP port 443 when TPROXY not Enable
-	if [ -z "$TPROXY" ]; then
+	if [ -z "$TPROXY" ] && [ "$DISABLE_UDP_RULES" != "1" ]; then
 		# Add UDP 443 block rule
 		if [ -z "$Interface" ]; then
 			# Global rules
@@ -1425,7 +1427,7 @@ restore_from_persistence() {
 	fi
 }
 
-while getopts ":m:s:l:S:L:i:e:a:B:b:w:p:G:D:F:N:M:I:oOuUfgrzAKPCRXh" arg; do
+while getopts ":m:s:l:S:L:i:e:a:B:b:w:p:G:D:F:N:M:I:oOuUyfgrzAKPCRXh" arg; do
 	case "$arg" in
 	m)
 		Interface=$OPTARG
@@ -1492,6 +1494,9 @@ while getopts ":m:s:l:S:L:i:e:a:B:b:w:p:G:D:F:N:M:I:oOuUfgrzAKPCRXh" arg; do
 		;;
 	U)
 		TPROXY=2
+		;;
+	y)
+		DISABLE_UDP_RULES=1
 		;;
 	g)
 		RUNMODE=gfw

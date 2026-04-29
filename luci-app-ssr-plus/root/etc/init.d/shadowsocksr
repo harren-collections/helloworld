@@ -44,6 +44,7 @@ shunt_dns_config_file=
 tmp_local_port=
 
 ARG_UDP=
+ARG_UDP_RULES=
 
 dns_port="5335"            #dns port
 china_dns_port="5333"      #china_dns_port
@@ -823,6 +824,46 @@ start_local() {
 	return 0
 }
 
+get_udp_relay_mode() {
+	local node="$1"
+	local type
+	local proto
+	local socks_ver
+
+	type=$(uci_get_by_name "$node" type)
+	[ "$type" = "ss-rust" ] || [ "$type" = "ss-libev" ] && type="ss"
+
+	case "$type" in
+	ss|ssr|hysteria2)
+		echo "native"
+		;;
+	trojan|tuic|shadowtls|socks5)
+		echo "split"
+		;;
+	naiveproxy)
+		echo "disabled"
+		;;
+	v2ray)
+		proto=$(uci_get_by_name "$node" v2ray_protocol)
+		case "$proto" in
+		http)
+			echo "disabled"
+			;;
+		socks)
+			socks_ver=$(uci_get_by_name "$node" socks_ver 5)
+			[ "$socks_ver" = "5" ] && echo "native" || echo "disabled"
+			;;
+		*)
+			echo "native"
+			;;
+		esac
+		;;
+	*)
+		echo "disabled"
+		;;
+	esac
+}
+
 Start_Run() {
 	if [ "$(uci_get_by_type global threads 0)" == "0" ]; then
 		local threads=$(cat /proc/cpuinfo | grep 'processor' | wc -l)
@@ -975,28 +1016,29 @@ load_config() {
 		start_local
 		return 1
 	fi
-	UDP_RELAY_SERVER=$(uci_get_by_type global udp_relay_server nil)
-	#tcp_config_file=$TMP_PATH/tcp-udp-dual-ssr-retcp.json
+	UDP_RELAY_SERVER=$GLOBAL_SERVER
+	local udp_mode=$(get_udp_relay_mode "$GLOBAL_SERVER")
 	tcp_config_file=$TMP_PATH/tcp-only-ssr-retcp.json
-	case "$UDP_RELAY_SERVER" in
-	nil)
-		#mode="tcp,udp"
+	case "$udp_mode" in
+	disabled)
+		echolog "提示：当前节点类型不提供 UDP 透明代理，也不会启用任何 UDP 规则，仅启用 TCP 透明代理。"
 		mode="tcp"
 		ARG_UDP=""
+		ARG_UDP_RULES="-y"
 		udp_config_file=""
 		;;
-	$GLOBAL_SERVER | same)
+	native)
 		mode="tcp,udp"
 		tcp_config_file=$TMP_PATH/tcp-udp-ssr-retcp.json
 		ARG_UDP="-u"
-		UDP_RELAY_SERVER=$GLOBAL_SERVER
+		ARG_UDP_RULES=""
 		;;
-	*)
+	split)
 		mode="udp"
 		udp_config_file=$TMP_PATH/udp-only-ssr-reudp.json
 		ARG_UDP="-U"
+		ARG_UDP_RULES=""
 		start_udp
-		#mode="tcp,udp"
 		mode="tcp"
 		;;
 	esac
@@ -1261,9 +1303,9 @@ start_rules() {
 		ARG_A=""
 	fi
 	/usr/share/shadowsocksr/gfw2ipset.sh
-	/usr/bin/ssr-rules \
-		-s "$server" \
-		-l "$local_port" \
+		/usr/bin/ssr-rules \
+			-s "$server" \
+			-l "$local_port" \
 		-S "$udp_server" \
 		-L "$udp_local_port" \
 		-a "$ac_ips" \
@@ -1272,10 +1314,10 @@ start_rules() {
 		-w "$(uci_get_by_type access_control wan_fw_ips)" \
 		-B "$(uci_get_by_type access_control lan_bp_ips)" \
 		-p "$(uci_get_by_type access_control lan_fp_ips)" \
-		-G "$(uci_get_by_type access_control lan_gm_ips)" \
-		-m "$(uci_get_by_type access_control Interface)" \
-		-D "$proxyport" \
-		$(get_arg_out) $(gfwmode) $ARG_UDP $ARG_A
+			-G "$(uci_get_by_type access_control lan_gm_ips)" \
+			-m "$(uci_get_by_type access_control Interface)" \
+			-D "$proxyport" \
+			$(get_arg_out) $(gfwmode) $ARG_UDP $ARG_UDP_RULES $ARG_A
 
 	return $?
 }
