@@ -2,7 +2,7 @@
 
 set -u
 
-XRAY_RELEASE_BASE="https://github.com/XTLS/Xray-core/releases/latest/download"
+XRAY_RELEASE_PAGE="https://github.com/XTLS/Xray-core/releases/latest"
 MIHOMO_RELEASE_PAGE="https://github.com/MetaCubeX/mihomo/releases/latest"
 XRAY_BINARY="/usr/bin/xray"
 MIHOMO_BINARY="/usr/bin/mihomo"
@@ -151,30 +151,55 @@ select_gzip_cmd() {
 	return 1
 }
 
+curl_effective_url() {
+	local target="$1"
+	local effective=""
+	local headers=""
+	local location=""
+
+	headers="$(curl -kfsSI --http1.1 --connect-timeout 10 --retry 2 -A 'curl/8.0' -H 'Accept-Encoding: identity' "$target" 2>/dev/null || true)"
+	location="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
+	[ -n "$location" ] && effective="$location"
+	[ -n "$effective" ] || effective="$(curl -kfsSL --http1.1 --connect-timeout 10 --retry 2 -A 'curl/8.0' -H 'Accept-Encoding: identity' -o /dev/null -w '%{url_effective}' "$target" 2>/dev/null || true)"
+	[ -n "$effective" ] || return 1
+
+	printf '%s' "$effective"
+}
+
+get_xray_latest_tag() {
+	local location tag
+
+	location="$(curl_effective_url "$XRAY_RELEASE_PAGE")" || return 1
+	tag="$(printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p')"
+	[ -n "$tag" ] || return 1
+	printf '%s' "$tag"
+}
+
 get_xray_latest_info() {
-	local headers tag asset url arch
+	local tag version asset url arch
 
 	arch="$(get_openwrt_arch)"
 	asset="$(map_xray_asset "$arch")" || return 2
-	headers="$(curl -kfsSI --connect-timeout 10 --retry 2 "$XRAY_RELEASE_BASE/$asset")" || return 3
-	url="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
-	tag="$(printf '%s' "$url" | sed -n 's#.*/download/\([^/]*\)/.*#\1#p' | sed -n '1p')"
+	tag="$(get_xray_latest_tag)" || return 3
+	version="$(trim_version "$tag")"
+	url="https://github.com/XTLS/Xray-core/releases/download/$tag/$asset"
 
-	[ -n "$tag" ] && [ -n "$url" ] || return 4
+	[ -n "$tag" ] && [ -n "$version" ] && [ -n "$url" ] || return 4
 
 	log_kv arch "$arch"
 	log_kv asset "$asset"
-	log_kv latest_version "$(trim_version "$tag")"
+	log_kv latest_version "$version"
 	log_kv download_url "$url"
 	return 0
 }
 
 get_mihomo_latest_tag() {
-	local headers location
+	local location tag
 
-	headers="$(curl -kfsSI --connect-timeout 10 --retry 2 "$MIHOMO_RELEASE_PAGE")" || return 1
-	location="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
-	printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p'
+	location="$(curl_effective_url "$MIHOMO_RELEASE_PAGE")" || return 1
+	tag="$(printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p')"
+	[ -n "$tag" ] || return 1
+	printf '%s' "$tag"
 }
 
 map_mihomo_asset() {
@@ -251,6 +276,8 @@ xray_info() {
 
 	installed=0
 	current=""
+	arch="$(get_openwrt_arch)"
+	asset="$(map_xray_asset "$arch" 2>/dev/null || true)"
 	if current="$(get_xray_current_version)" && [ -n "$current" ]; then
 		installed=1
 	fi
@@ -261,8 +288,11 @@ xray_info() {
 	log_kv component xray
 	log_kv installed "$installed"
 	log_kv current_version "$current"
+	log_kv arch "$arch"
+	log_kv asset "$asset"
 
 	if [ $latest_rc -ne 0 ]; then
+		log_kv can_upgrade 0
 		case "$latest_rc" in
 			2) log_kv error 'unsupported_arch' ;;
 			3) log_kv error 'fetch_failed' ;;
@@ -290,8 +320,12 @@ mihomo_info() {
 
 	installed=0
 	current=""
+	arch="$(get_openwrt_arch)"
 	if current="$(get_mihomo_current_version)" && [ -n "$current" ]; then
 		installed=1
+		asset="$(map_mihomo_asset "$arch" "$current" 2>/dev/null || true)"
+	else
+		asset=""
 	fi
 
 	latest_output="$(get_mihomo_latest_info 2>/dev/null)"
@@ -300,8 +334,11 @@ mihomo_info() {
 	log_kv component mihomo
 	log_kv installed "$installed"
 	log_kv current_version "$current"
+	log_kv arch "$arch"
+	log_kv asset "$asset"
 
 	if [ $latest_rc -ne 0 ]; then
+		log_kv can_upgrade 0
 		case "$latest_rc" in
 			2) log_kv error 'unsupported_arch' ;;
 			3) log_kv error 'fetch_failed' ;;
