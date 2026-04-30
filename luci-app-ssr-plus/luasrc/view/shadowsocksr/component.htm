@@ -1,0 +1,192 @@
+<script type="text/javascript">
+//<![CDATA[
+	var componentMeta = {
+		xray: {
+			label: '<%:Xray-core%>',
+			help: '<%:The online upgrade downloads the matching Xray-core linux archive for the current ARCH from the official GitHub release page.%>'
+		},
+		mihomo: {
+			label: '<%:Mihomo%>',
+			help: '<%:The online upgrade only tracks the latest stable Mihomo release and downloads the matching linux archive for the current ARCH from the official GitHub release page.%>'
+		}
+	};
+
+	var componentMessageMap = {
+		'Already up to date': '<%:Already up to date%>',
+		'Upgrade completed': '<%:Upgrade completed%>',
+		'Unsupported ARCH': '<%:Unsupported ARCH%>',
+		'Failed to fetch release metadata': '<%:Failed to fetch release metadata%>',
+		'Matching release asset not found': '<%:Matching release asset not found%>',
+		'Missing unzip support': '<%:Missing unzip support%>',
+		'Missing gzip support': '<%:Missing gzip support%>',
+		'Failed to create temp directory': '<%:Failed to create temp directory%>',
+		'Download failed': '<%:Download failed%>',
+		'Extract failed': '<%:Extract failed%>',
+		'xray binary not found in archive': '<%:xray binary not found in archive%>',
+		'mihomo binary not found in archive': '<%:mihomo binary not found in archive%>',
+		'Install failed': '<%:Install failed%>',
+		'Installed binary failed to run': '<%:Installed binary failed to run%>'
+	};
+
+	function selectedComponent() {
+		var selector = document.getElementById('component-selector');
+		return selector ? selector.value : 'xray';
+	}
+
+	function componentHelp(component) {
+		return componentMeta[component] ? componentMeta[component].help : '';
+	}
+
+	function displayMessage(message) {
+		return componentMessageMap[message] || message || '';
+	}
+
+	function displayError(error) {
+		if (!error) {
+			return '';
+		}
+
+		var map = {
+			unsupported_arch: '<%:Unsupported ARCH%>',
+			fetch_failed: '<%:Failed to fetch release metadata%>',
+			asset_not_found: '<%:Matching release asset not found%>',
+			unsupported_component: '<%:Unsupported component%>',
+			unknown_error: '<%:Unknown error%>'
+		};
+
+		return map[error] || error;
+	}
+
+	function renderComponentInfo(data) {
+		var panel = document.getElementById('component-status');
+		var upgradeButton = document.getElementById('component-upgrade');
+		var action = document.getElementById('component-action');
+		var help = document.getElementById('component-help');
+		var html = [];
+		var component = data && data.component ? data.component : selectedComponent();
+
+		if (!panel) {
+			return;
+		}
+
+		if (!data) {
+			panel.innerHTML = '<span style="color:red"><%:Failed to query component information.%></span>';
+			if (upgradeButton) upgradeButton.disabled = true;
+			return;
+		}
+
+		if (help) {
+			help.innerHTML = componentHelp(component);
+		}
+
+		html.push('<div><strong><%:Installed Version%>:</strong> ' + (data.current_version || '<%:Not installed%>') + '</div>');
+		html.push('<div><strong><%:Latest Version%>:</strong> ' + (data.latest_version || '<%:Unknown%>') + '</div>');
+		html.push('<div><strong><%:Current ARCH%>:</strong> ' + (data.arch || '<%:Unknown%>') + '</div>');
+		html.push('<div><strong><%:Release Asset%>:</strong> ' + (data.asset || '<%:Unknown%>') + '</div>');
+
+		if (data.error) {
+			html.push('<div style="color:red"><%:Status%>: ' + displayError(data.error) + '</div>');
+		} else if (data.can_upgrade) {
+			html.push('<div style="color:#d48806"><%:Status%>: <%:Upgrade available%></div>');
+		} else {
+			html.push('<div style="color:green"><%:Status%>: <%:Already up to date%></div>');
+		}
+
+		panel.innerHTML = html.join('');
+
+		if (upgradeButton) {
+			upgradeButton.disabled = !!data.error || !data.latest_version || !data.can_upgrade;
+		}
+
+		if (action) {
+			action.innerHTML = data.message
+				? '<span style="color:' + (data.success ? 'green' : 'red') + '">' + displayMessage(data.message) + '</span>'
+				: '';
+		}
+	}
+
+	function queryComponentInfo(button, doUpgrade) {
+		var component = selectedComponent();
+		var action = document.getElementById('component-action');
+		var url = doUpgrade
+			? '<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "component_upgrade")%>'
+			: '<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "component_status")%>';
+
+		if (button) {
+			button.disabled = true;
+			button.value = doUpgrade ? '<%:Upgrading...%>' : '<%:Checking...%>';
+		}
+
+		if (action) {
+			action.innerHTML = doUpgrade ? '<%:Processing...%>' : '';
+		}
+
+		XHR.get(url, { component: component }, function(x, rv) {
+			renderComponentInfo(rv);
+			if (button) {
+				button.disabled = false;
+				button.value = doUpgrade ? '<%:Upgrade%>' : '<%:Check Update%>';
+			}
+		});
+	}
+
+	function onComponentChange() {
+		var action = document.getElementById('component-action');
+		if (action) {
+			action.innerHTML = '';
+		}
+		queryComponentInfo(null, false);
+	}
+
+	window.setTimeout(function() {
+		onComponentChange();
+	}, 0);
+//]]>
+</script>
+
+<style>
+	.component-upgrade-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		margin-top: 10px;
+	}
+
+	.component-upgrade-card {
+		line-height: 1.8;
+	}
+
+	.component-upgrade-help {
+		margin-top: 6px;
+		color: #666;
+	}
+
+	.component-upgrade-result {
+		margin-top: 8px;
+	}
+
+	.component-selector {
+		min-width: 180px;
+	}
+</style>
+
+<fieldset class="cbi-section">
+	<legend><%:Core Components%></legend>
+	<div class="cbi-value">
+		<label class="cbi-value-title">
+			<select id="component-selector" class="cbi-input-select component-selector" onchange="onComponentChange()">
+				<option value="xray"><%:Xray-core%></option>
+				<option value="mihomo"><%:Mihomo%></option>
+			</select>
+		</label>
+		<div class="cbi-value-field component-upgrade-card">
+			<div id="component-status"><em><%:Collecting data...%></em></div>
+			<div class="component-upgrade-help" id="component-help"></div>
+			<div class="component-upgrade-actions">
+				<input type="button" class="btn cbi-button cbi-button-reload" value="<%:Check Update%>" onclick="queryComponentInfo(this, false)" />
+				<input type="button" class="btn cbi-button cbi-button-apply" id="component-upgrade" value="<%:Upgrade%>" onclick="queryComponentInfo(this, true)" />
+			</div>
+			<div class="component-upgrade-result" id="component-action"></div>
+		</div>
+	</div>
+</fieldset>

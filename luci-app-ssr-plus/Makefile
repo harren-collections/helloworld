@@ -40,7 +40,7 @@ LUCI_PKGARCH:=all
 LUCI_DEPENDS:= \
 	+coreutils +coreutils-base64 +dns2tcp +dnsmasq-full \
 	+jq +ip-full +lua +lua-neturl +libuci-lua +microsocks \
-	+tcping +resolveip +shadowsocksr-libev-ssr-check +curl +nping \
+	+tcping +resolveip +shadowsocksr-libev-ssr-check +curl +nping +unzip \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Xray:curl \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Xray:xray-core \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG:chinadns-ng \

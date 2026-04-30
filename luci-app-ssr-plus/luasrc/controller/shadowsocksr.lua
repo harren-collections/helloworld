@@ -9,6 +9,11 @@ local json = require "luci.jsonc"
 local uci = require "luci.model.uci".cursor()
 
 local CLASH_API_PORT = "16756"
+local COMPONENT_HELPER = "/usr/share/shadowsocksr/update_components.sh"
+local SUPPORTED_COMPONENTS = {
+	xray = true,
+	mihomo = true
+}
 
 local function urlencode(str)
 	if not str then return "" end
@@ -75,6 +80,47 @@ local function parse_clash_groups(raw)
 	return groups
 end
 
+local function parse_kv_output(raw)
+	local data = {}
+	for line in tostring(raw or ""):gmatch("[^\r\n]+") do
+		local key, value = line:match("^([%w_]+)=(.*)$")
+		if key then
+			data[key] = value
+		end
+	end
+	return data
+end
+
+local function read_component_state(component, action)
+	if not SUPPORTED_COMPONENTS[component] then
+		return nil, 400, "unsupported_component"
+	end
+
+	local cmd = string.format(
+		"/bin/sh %s %s 2>/dev/null",
+		luci.util.shellquote(COMPONENT_HELPER),
+		luci.util.shellquote(component .. "_" .. action)
+	)
+	return parse_kv_output(luci.sys.exec(cmd))
+end
+
+local function write_component_json(data)
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		component = data.component or "xray",
+		installed = data.installed == "1",
+		current_version = data.current_version or "",
+		latest_version = data.latest_version or "",
+		previous_version = data.previous_version or "",
+		arch = data.arch or "",
+		asset = data.asset or "",
+		can_upgrade = data.can_upgrade == "1",
+		success = data.success == "1",
+		error = data.error or "",
+		message = data.message or ""
+	})
+end
+
 function index()
 	if not nixio.fs.access("/etc/config/shadowsocksr") then
 		call("act_reset")
@@ -89,9 +135,12 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "advanced"}, cbi("shadowsocksr/advanced"), _("Advanced Settings"), 50).leaf = true
 	entry({"admin", "services", "shadowsocksr", "server"}, arcombine(cbi("shadowsocksr/server"), cbi("shadowsocksr/server-config")), _("SSR Server"), 60).leaf = true
 	entry({"admin", "services", "shadowsocksr", "status"}, form("shadowsocksr/status"), _("Status"), 70).leaf = true
+	entry({"admin", "services", "shadowsocksr", "component"}, cbi("shadowsocksr/component"), _("Component Update"), 75).leaf = true
 	entry({"admin", "services", "shadowsocksr", "check"}, call("check_status"))
 	entry({"admin", "services", "shadowsocksr", "refresh"}, call("refresh_data"))
 	entry({"admin", "services", "shadowsocksr", "subscribe"}, call("subscribe"))
+	entry({"admin", "services", "shadowsocksr", "component_status"}, call("component_status")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "component_upgrade"}, call("component_upgrade")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "checkport"}, call("check_port"))
 	entry({"admin", "services", "shadowsocksr", "log"}, form("shadowsocksr/log"), _("Log"), 80).leaf = true
 	entry({"admin", "services", "shadowsocksr", "get_log"}, call("get_log")).leaf = true
@@ -113,6 +162,41 @@ function subscribe()
 	luci.sys.call("/usr/bin/lua /usr/share/shadowsocksr/subscribe.lua >>/var/log/ssrplus.log")
 	luci.http.prepare_content("application/json")
 	luci.http.write_json({ret = 1})
+end
+
+function component_status()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_component_state(component, "info")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_component_json({component = component, error = err or "bad_request"})
+		return
+	end
+	write_component_json(data)
+end
+
+function component_upgrade()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_component_state(component, "upgrade")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_component_json({component = component, error = err or "bad_request", success = "0"})
+		return
+	end
+
+	local info = read_component_state(component, "info")
+	if info then
+		for key, value in pairs(info) do
+			if data[key] == nil or data[key] == "" then
+				data[key] = value
+			end
+		end
+		if data.success == "1" then
+			data.can_upgrade = info.can_upgrade
+		end
+	end
+
+	write_component_json(data)
 end
 
 function act_status()

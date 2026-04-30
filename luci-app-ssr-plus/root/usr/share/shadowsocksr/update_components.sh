@@ -1,0 +1,558 @@
+#!/bin/sh
+
+set -u
+
+XRAY_RELEASE_BASE="https://github.com/XTLS/Xray-core/releases/latest/download"
+MIHOMO_RELEASE_PAGE="https://github.com/MetaCubeX/mihomo/releases/latest"
+XRAY_BINARY="/usr/bin/xray"
+MIHOMO_BINARY="/usr/bin/mihomo"
+
+log_kv() {
+	key="$1"
+	shift
+	printf '%s=%s\n' "$key" "$*"
+}
+
+trim_version() {
+	printf '%s' "$1" | sed 's/^v//'
+}
+
+get_openwrt_arch() {
+	local arch
+
+	arch=""
+	if [ -r /etc/openwrt_release ]; then
+		arch="$(. /etc/openwrt_release 2>/dev/null; printf '%s' "${DISTRIB_ARCH:-}")"
+	fi
+
+	if [ -z "$arch" ] && command -v opkg >/dev/null 2>&1; then
+		arch="$(opkg print-architecture 2>/dev/null | awk '$2 != "all" && $2 != "noarch" { print $2 }' | tail -n 1)"
+	fi
+
+	if [ -z "$arch" ] && command -v uname >/dev/null 2>&1; then
+		arch="$(uname -m 2>/dev/null)"
+	fi
+
+	printf '%s' "$arch"
+}
+
+find_mihomo_binary() {
+	if command -v mihomo >/dev/null 2>&1; then
+		command -v mihomo
+		return 0
+	fi
+
+	for path in /usr/bin/mihomo /usr/libexec/mihomo /etc/ssrplus/bin/mihomo; do
+		if [ -x "$path" ]; then
+			printf '%s' "$path"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+get_xray_current_version() {
+	if [ ! -x "$XRAY_BINARY" ]; then
+		return 1
+	fi
+
+	"$XRAY_BINARY" version 2>/dev/null | sed -n 's/^Xray[[:space:]]\+\([^[:space:]]\+\).*$/\1/p' | sed -n '1p'
+	return 0
+}
+
+get_mihomo_current_version() {
+	local binary
+
+	binary="$(find_mihomo_binary)" || return 1
+	"$binary" -v 2>/dev/null | sed -n 's/.* v\([0-9][0-9.]*\).*/\1/p' | sed -n '1p'
+	return 0
+}
+
+map_xray_asset() {
+	case "$1" in
+		x86_64*|amd64*)
+			printf '%s' 'Xray-linux-64.zip'
+			;;
+		i386*|i486*|i586*|i686*|x86*)
+			printf '%s' 'Xray-linux-32.zip'
+			;;
+		aarch64*|arm64*)
+			printf '%s' 'Xray-linux-arm64-v8a.zip'
+			;;
+		*armv7*|*cortex-a*|*neon*|*vfpv3*|*vfpv4*)
+			printf '%s' 'Xray-linux-arm32-v7a.zip'
+			;;
+		*armv6*|*arm1176*)
+			printf '%s' 'Xray-linux-arm32-v6.zip'
+			;;
+		*armv5*|*arm926*|*xscale*)
+			printf '%s' 'Xray-linux-arm32-v5.zip'
+			;;
+		mips64el*|mips64le*)
+			printf '%s' 'Xray-linux-mips64le.zip'
+			;;
+		mips64*)
+			printf '%s' 'Xray-linux-mips64.zip'
+			;;
+		mipsel*|mips32el*|mips32le*)
+			printf '%s' 'Xray-linux-mips32le.zip'
+			;;
+		mips*)
+			printf '%s' 'Xray-linux-mips32.zip'
+			;;
+		riscv64*)
+			printf '%s' 'Xray-linux-riscv64.zip'
+			;;
+		loongarch64*|loong64*)
+			printf '%s' 'Xray-linux-loong64.zip'
+			;;
+		powerpc64*|ppc64*)
+			printf '%s' 'Xray-linux-ppc64.zip'
+			;;
+		s390x*)
+			printf '%s' 'Xray-linux-s390x.zip'
+			;;
+		*)
+			return 1
+			;;
+	 esac
+}
+
+require_cmd() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+select_unzip_cmd() {
+	if require_cmd unzip; then
+		printf '%s' 'unzip -oq'
+		return 0
+	fi
+
+	if busybox unzip >/dev/null 2>&1; then
+		printf '%s' 'busybox unzip -o'
+		return 0
+	fi
+
+	return 1
+}
+
+select_gzip_cmd() {
+	if require_cmd gzip; then
+		printf '%s' 'gzip -dc'
+		return 0
+	fi
+
+	if busybox gzip >/dev/null 2>&1; then
+		printf '%s' 'busybox gzip -dc'
+		return 0
+	fi
+
+	return 1
+}
+
+get_xray_latest_info() {
+	local headers tag asset url arch
+
+	arch="$(get_openwrt_arch)"
+	asset="$(map_xray_asset "$arch")" || return 2
+	headers="$(curl -kfsSI --connect-timeout 10 --retry 2 "$XRAY_RELEASE_BASE/$asset")" || return 3
+	url="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
+	tag="$(printf '%s' "$url" | sed -n 's#.*/download/\([^/]*\)/.*#\1#p' | sed -n '1p')"
+
+	[ -n "$tag" ] && [ -n "$url" ] || return 4
+
+	log_kv arch "$arch"
+	log_kv asset "$asset"
+	log_kv latest_version "$(trim_version "$tag")"
+	log_kv download_url "$url"
+	return 0
+}
+
+get_mihomo_latest_tag() {
+	local headers location
+
+	headers="$(curl -kfsSI --connect-timeout 10 --retry 2 "$MIHOMO_RELEASE_PAGE")" || return 1
+	location="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
+	printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p'
+}
+
+map_mihomo_asset() {
+	local arch="$1"
+	local version="$2"
+
+	case "$arch" in
+		x86_64*|amd64*)
+			printf 'mihomo-linux-amd64-compatible-v%s.gz' "$version"
+			;;
+		i386*|i486*|i586*|i686*|x86*)
+			printf 'mihomo-linux-386-v%s.gz' "$version"
+			;;
+		aarch64*|arm64*)
+			printf 'mihomo-linux-arm64-v%s.gz' "$version"
+			;;
+		*armv7*|*cortex-a*|*neon*|*vfpv3*|*vfpv4*)
+			printf 'mihomo-linux-armv7-v%s.gz' "$version"
+			;;
+		*armv6*|*arm1176*)
+			printf 'mihomo-linux-armv6-v%s.gz' "$version"
+			;;
+		*armv5*|*arm926*|*xscale*)
+			printf 'mihomo-linux-armv5-v%s.gz' "$version"
+			;;
+		mips64el*|mips64le*)
+			printf 'mihomo-linux-mips64le-v%s.gz' "$version"
+			;;
+		mips64*)
+			printf 'mihomo-linux-mips64-v%s.gz' "$version"
+			;;
+		mipsel*|mips32el*|mips32le*)
+			printf 'mihomo-linux-mipsle-softfloat-v%s.gz' "$version"
+			;;
+		mips*)
+			printf 'mihomo-linux-mips-softfloat-v%s.gz' "$version"
+			;;
+		riscv64*)
+			printf 'mihomo-linux-riscv64-v%s.gz' "$version"
+			;;
+		loongarch64*|loong64*)
+			printf 'mihomo-linux-loong64-abi1-v%s.gz' "$version"
+			;;
+		powerpc64le*|ppc64le*)
+			printf 'mihomo-linux-ppc64le-v%s.gz' "$version"
+			;;
+		s390x*)
+			printf 'mihomo-linux-s390x-v%s.gz' "$version"
+			;;
+		*)
+			return 1
+			;;
+	 esac
+}
+
+get_mihomo_latest_info() {
+	local arch tag version asset url
+
+	arch="$(get_openwrt_arch)"
+	tag="$(get_mihomo_latest_tag)" || return 3
+	version="$(trim_version "$tag")"
+	asset="$(map_mihomo_asset "$arch" "$version")" || return 2
+	url="https://github.com/MetaCubeX/mihomo/releases/download/$tag/$asset"
+
+	log_kv arch "$arch"
+	log_kv asset "$asset"
+	log_kv latest_version "$version"
+	log_kv download_url "$url"
+	return 0
+}
+
+xray_info() {
+	local current installed latest_output latest_rc latest_version arch asset can_upgrade
+
+	installed=0
+	current=""
+	if current="$(get_xray_current_version)" && [ -n "$current" ]; then
+		installed=1
+	fi
+
+	latest_output="$(get_xray_latest_info 2>/dev/null)"
+	latest_rc=$?
+
+	log_kv component xray
+	log_kv installed "$installed"
+	log_kv current_version "$current"
+
+	if [ $latest_rc -ne 0 ]; then
+		case "$latest_rc" in
+			2) log_kv error 'unsupported_arch' ;;
+			3) log_kv error 'fetch_failed' ;;
+			4) log_kv error 'asset_not_found' ;;
+			*) log_kv error 'unknown_error' ;;
+		 esac
+		return 0
+	fi
+
+	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
+	arch="$(printf '%s\n' "$latest_output" | sed -n 's/^arch=//p' | sed -n '1p')"
+	asset="$(printf '%s\n' "$latest_output" | sed -n 's/^asset=//p' | sed -n '1p')"
+	can_upgrade=0
+	if [ -z "$current" ] || [ "$current" != "$latest_version" ]; then
+		can_upgrade=1
+	fi
+
+	printf '%s\n' "$latest_output" | sed '/^download_url=/d'
+	log_kv can_upgrade "$can_upgrade"
+	log_kv error ''
+}
+
+mihomo_info() {
+	local current installed latest_output latest_rc latest_version arch asset can_upgrade
+
+	installed=0
+	current=""
+	if current="$(get_mihomo_current_version)" && [ -n "$current" ]; then
+		installed=1
+	fi
+
+	latest_output="$(get_mihomo_latest_info 2>/dev/null)"
+	latest_rc=$?
+
+	log_kv component mihomo
+	log_kv installed "$installed"
+	log_kv current_version "$current"
+
+	if [ $latest_rc -ne 0 ]; then
+		case "$latest_rc" in
+			2) log_kv error 'unsupported_arch' ;;
+			3) log_kv error 'fetch_failed' ;;
+			4) log_kv error 'asset_not_found' ;;
+			*) log_kv error 'unknown_error' ;;
+		 esac
+		return 0
+	fi
+
+	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
+	arch="$(printf '%s\n' "$latest_output" | sed -n 's/^arch=//p' | sed -n '1p')"
+	asset="$(printf '%s\n' "$latest_output" | sed -n 's/^asset=//p' | sed -n '1p')"
+	can_upgrade=0
+	if [ -z "$current" ] || [ "$current" != "$latest_version" ]; then
+		can_upgrade=1
+	fi
+
+	printf '%s\n' "$latest_output" | sed '/^download_url=/d'
+	log_kv can_upgrade "$can_upgrade"
+	log_kv error ''
+}
+
+xray_upgrade() {
+	local latest_output latest_rc latest_version download_url tmp_dir zip_file unzip_cmd backup_file current_before current_after
+
+	latest_output="$(get_xray_latest_info 2>/dev/null)"
+	latest_rc=$?
+	if [ $latest_rc -ne 0 ]; then
+		log_kv success 0
+		case "$latest_rc" in
+			2) log_kv message 'Unsupported ARCH' ;;
+			3) log_kv message 'Failed to fetch release metadata' ;;
+			4) log_kv message 'Matching release asset not found' ;;
+			*) log_kv message 'Unknown error' ;;
+		 esac
+		return 0
+	fi
+
+	if ! unzip_cmd="$(select_unzip_cmd)"; then
+		log_kv success 0
+		log_kv message 'Missing unzip support'
+		return 0
+	fi
+
+	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
+	download_url="$(printf '%s\n' "$latest_output" | sed -n 's/^download_url=//p' | sed -n '1p')"
+	current_before="$(get_xray_current_version 2>/dev/null || true)"
+	if [ -n "$current_before" ] && [ "$current_before" = "$latest_version" ]; then
+		log_kv success 1
+		log_kv previous_version "$current_before"
+		log_kv current_version "$current_before"
+		log_kv latest_version "$latest_version"
+		log_kv message 'Already up to date'
+		return 0
+	fi
+
+	tmp_dir="$(mktemp -d /tmp/ssrplus-xray.XXXXXX)"
+	if [ -z "$tmp_dir" ] || [ ! -d "$tmp_dir" ]; then
+		log_kv success 0
+		log_kv message 'Failed to create temp directory'
+		return 0
+	fi
+
+	zip_file="$tmp_dir/xray.zip"
+	backup_file="$tmp_dir/xray.backup"
+
+	trap "rm -rf '$tmp_dir'" EXIT INT TERM
+
+	if ! curl -fsSL --connect-timeout 10 --retry 2 -o "$zip_file" "$download_url"; then
+		log_kv success 0
+		log_kv message 'Download failed'
+		return 0
+	fi
+
+	if ! sh -c "$unzip_cmd \"$zip_file\" -d \"$tmp_dir\" >/dev/null 2>&1"; then
+		log_kv success 0
+		log_kv message 'Extract failed'
+		return 0
+	fi
+
+	if [ ! -f "$tmp_dir/xray" ]; then
+		log_kv success 0
+		log_kv message 'xray binary not found in archive'
+		return 0
+	fi
+
+	chmod 0755 "$tmp_dir/xray" || true
+	if [ -x "$XRAY_BINARY" ]; then
+		cp -fp "$XRAY_BINARY" "$backup_file" 2>/dev/null || true
+	fi
+
+	if ! cp -f "$tmp_dir/xray" "$XRAY_BINARY"; then
+		if [ -f "$backup_file" ]; then
+			cp -f "$backup_file" "$XRAY_BINARY" 2>/dev/null || true
+		fi
+		log_kv success 0
+		log_kv message 'Install failed'
+		return 0
+	fi
+
+	chmod 0755 "$XRAY_BINARY" || true
+	current_after="$(get_xray_current_version 2>/dev/null || true)"
+	if [ -z "$current_after" ]; then
+		if [ -f "$backup_file" ]; then
+			cp -f "$backup_file" "$XRAY_BINARY" 2>/dev/null || true
+			chmod 0755 "$XRAY_BINARY" || true
+		fi
+		log_kv success 0
+		log_kv message 'Installed binary failed to run'
+		return 0
+	fi
+
+	if [ -x /etc/init.d/shadowsocksr ]; then
+		/etc/init.d/shadowsocksr restart >/dev/null 2>&1 || true
+	fi
+
+	log_kv success 1
+	log_kv previous_version "$current_before"
+	log_kv current_version "$current_after"
+	log_kv latest_version "$latest_version"
+	log_kv message 'Upgrade completed'
+	return 0
+}
+
+mihomo_upgrade() {
+	local latest_output latest_rc latest_version download_url tmp_dir gz_file gzip_cmd backup_file current_before current_after target_binary extracted_binary
+
+	latest_output="$(get_mihomo_latest_info 2>/dev/null)"
+	latest_rc=$?
+	if [ $latest_rc -ne 0 ]; then
+		log_kv success 0
+		case "$latest_rc" in
+			2) log_kv message 'Unsupported ARCH' ;;
+			3) log_kv message 'Failed to fetch release metadata' ;;
+			4) log_kv message 'Matching release asset not found' ;;
+			*) log_kv message 'Unknown error' ;;
+		 esac
+		return 0
+	fi
+
+	if ! gzip_cmd="$(select_gzip_cmd)"; then
+		log_kv success 0
+		log_kv message 'Missing gzip support'
+		return 0
+	fi
+
+	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
+	download_url="$(printf '%s\n' "$latest_output" | sed -n 's/^download_url=//p' | sed -n '1p')"
+	current_before="$(get_mihomo_current_version 2>/dev/null || true)"
+	if [ -n "$current_before" ] && [ "$current_before" = "$latest_version" ]; then
+		log_kv success 1
+		log_kv previous_version "$current_before"
+		log_kv current_version "$current_before"
+		log_kv latest_version "$latest_version"
+		log_kv message 'Already up to date'
+		return 0
+	fi
+
+	target_binary="$(find_mihomo_binary 2>/dev/null || true)"
+	[ -n "$target_binary" ] || target_binary="$MIHOMO_BINARY"
+
+	tmp_dir="$(mktemp -d /tmp/ssrplus-mihomo.XXXXXX)"
+	if [ -z "$tmp_dir" ] || [ ! -d "$tmp_dir" ]; then
+		log_kv success 0
+		log_kv message 'Failed to create temp directory'
+		return 0
+	fi
+
+	gz_file="$tmp_dir/mihomo.gz"
+	backup_file="$tmp_dir/mihomo.backup"
+	extracted_binary="$tmp_dir/mihomo"
+
+	trap "rm -rf '$tmp_dir'" EXIT INT TERM
+
+	if ! curl -kfsSL --connect-timeout 10 --retry 2 -o "$gz_file" "$download_url"; then
+		log_kv success 0
+		log_kv message 'Download failed'
+		return 0
+	fi
+
+	if ! sh -c "$gzip_cmd \"$gz_file\" > \"$extracted_binary\""; then
+		log_kv success 0
+		log_kv message 'Extract failed'
+		return 0
+	fi
+
+	if [ ! -s "$extracted_binary" ]; then
+		log_kv success 0
+		log_kv message 'mihomo binary not found in archive'
+		return 0
+	fi
+
+	mkdir -p "$(dirname "$target_binary")" || true
+	chmod 0755 "$extracted_binary" || true
+	if [ -x "$target_binary" ]; then
+		cp -fp "$target_binary" "$backup_file" 2>/dev/null || true
+	fi
+
+	if ! cp -f "$extracted_binary" "$target_binary"; then
+		if [ -f "$backup_file" ]; then
+			cp -f "$backup_file" "$target_binary" 2>/dev/null || true
+		fi
+		log_kv success 0
+		log_kv message 'Install failed'
+		return 0
+	fi
+
+	chmod 0755 "$target_binary" || true
+	if [ "$target_binary" != "$MIHOMO_BINARY" ] && [ ! -x "$MIHOMO_BINARY" ]; then
+		ln -sf "$target_binary" "$MIHOMO_BINARY" 2>/dev/null || true
+	fi
+
+	current_after="$(get_mihomo_current_version 2>/dev/null || true)"
+	if [ -z "$current_after" ]; then
+		if [ -f "$backup_file" ]; then
+			cp -f "$backup_file" "$target_binary" 2>/dev/null || true
+			chmod 0755 "$target_binary" || true
+		fi
+		log_kv success 0
+		log_kv message 'Installed binary failed to run'
+		return 0
+	fi
+
+	if [ -x /etc/init.d/shadowsocksr ]; then
+		/etc/init.d/shadowsocksr restart >/dev/null 2>&1 || true
+	fi
+
+	log_kv success 1
+	log_kv previous_version "$current_before"
+	log_kv current_version "$current_after"
+	log_kv latest_version "$latest_version"
+	log_kv message 'Upgrade completed'
+	return 0
+}
+
+case "${1:-}" in
+	xray_info)
+		xray_info
+		;;
+	xray_upgrade)
+		xray_upgrade
+		;;
+	mihomo_info)
+		mihomo_info
+		;;
+	mihomo_upgrade)
+		mihomo_upgrade
+		;;
+	*)
+		log_kv success 0
+		log_kv message 'Usage: update_components.sh xray_info|xray_upgrade|mihomo_info|mihomo_upgrade'
+		return 1 2>/dev/null || exit 1
+		;;
+esac
