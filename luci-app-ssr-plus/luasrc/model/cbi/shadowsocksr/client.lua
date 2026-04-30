@@ -37,24 +37,6 @@ local function is_finded(e)
 	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
 end
 
-local function default_dns_mode_for_non_clash()
-	if is_finded("dns2tcp") then
-		return "1"
-	elseif is_finded("dns2socks") then
-		return "2"
-	elseif is_finded("dns2socks-rust") then
-		return "3"
-	elseif is_finded("mosdns") then
-		return "4"
-	elseif is_finded("dnsproxy") then
-		return "5"
-	elseif is_finded("chinadns-ng") then
-		return "6"
-	end
-
-	return "0"
-end
-
 local function clash_display_name(s)
 	if s.type ~= "clash" or not s.clash_url or s.clash_url == "" then
 		return nil
@@ -105,23 +87,6 @@ for _, key in pairs(key_table) do
 end
 o.default = "nil"
 o.rmempty = false
-local global_server_write = o.write
-function o.write(self, section, value)
-	local old_value = self.map:get(section, "global_server")
-	local old_type = (old_value and old_value ~= "nil") and uci:get("shadowsocksr", old_value, "type") or ""
-
-	if global_server_write then
-		global_server_write(self, section, value)
-	else
-		self.map:set(section, "global_server", value)
-	end
-
-	if value and value ~= "nil" and uci:get("shadowsocksr", value, "type") == "clash" then
-		uci:set("shadowsocksr", section, "pdnsd_enable", "0")
-	elseif old_type == "clash" then
-		uci:set("shadowsocksr", section, "pdnsd_enable", default_dns_mode_for_non_clash())
-	end
-end
 
 o = s:option(DummyValue, "_clash_panel", translate("Clash Panel"))
 o.template = "shadowsocksr/clash_main_panel"
