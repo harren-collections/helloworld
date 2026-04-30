@@ -202,8 +202,14 @@ local function isClashYAML(str)
 	if type(str) ~= "string" or str:match("^%s*$") then
 		return false
 	end
-	local has_proxies = str:match("(^|\n)%s*proxies%s*:") or str:match("(^|\n)%s*proxy%-providers%s*:")
-	return has_proxies ~= nil
+
+	for line in str:gmatch("[^\r\n]+") do
+		if line:match("^%s*proxies%s*:") or line:match("^%s*proxy%-providers%s*:") then
+			return true
+		end
+	end
+
+	return false
 end
 
 local function processClashSubscription(url)
@@ -1409,8 +1415,10 @@ local execute = function()
 				tinsert(nodeResult, {})
 				local index = #nodeResult
 				local nodes, szType
+				local is_clash_subscription = false
 
 					if isClashYAML(raw) then
+						is_clash_subscription = true
 						local result = processClashSubscription(url)
 						if result and not check_filer(result) and not cache[groupHash][result.hashkey] then
 							result.grouphashkey = groupHash
@@ -1453,6 +1461,7 @@ local execute = function()
 				-- 临时存储该订阅解析出的节点（带原始别名）
 				local groupRawNodes = {}
 
+				if not is_clash_subscription then
 				for _, v in ipairs(nodes) do
 					if v and not string.match(v, "^%s*$") then
 						xpcall(function()
@@ -1497,6 +1506,7 @@ local execute = function()
 							log(string.format("解析节点出错: %s\n原始数据: %s", tostring(err), tostring(v)))
 						end)
 					end
+				end
 				end
 
 				-- 对该组节点进行别名编号：重复节点加后缀，唯一节点不加

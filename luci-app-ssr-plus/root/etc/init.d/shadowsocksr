@@ -83,6 +83,14 @@ EXTRA_HELP="        reset        Reset to default settings
 #extra_command "reset" "Reset to default settings"
 PS="/bin/busybox ps"
 
+ps_list() {
+	if $PS -w >/dev/null 2>&1; then
+		$PS -w
+	else
+		$PS
+	fi
+}
+
 uci_get_by_name() {
 	local ret=$(uci get $NAME.$1.$2 2>/dev/null)
 	echo ${ret:=$3}
@@ -184,7 +192,7 @@ prepare_clash_runtime_config() {
 
 	mkdir -p "$workdir"
 	cp -f "$cache_file" "$raw_file"
-	yq -M -i 'del(.tun) | del(.listeners) | del(.redir-port) | del(.tproxy-port) | del(.socks-port) | del(.mixed-port) | del(.port) | del(.external-controller) | del(.secret) | del(.allow-lan)' "$raw_file"
+	yq -M -i 'del(.tun) | del(.listeners) | del(.redir-port) | del(.tproxy-port) | del(.socks-port) | del(.mixed-port) | del(.port) | del(.external-controller) | del(.secret) | del(.allow-lan) | del(.dns.fake-ip-range) | del(.dns.fake-ip-filter)' "$raw_file"
 
 	cat >"$overlay_file" <<-EOF
 		redir-port: $local_port
@@ -197,6 +205,10 @@ prepare_clash_runtime_config() {
 		  store-selected: true
 		tun:
 		  enable: false
+		dns:
+		  enable: true
+		  enhanced-mode: redir-host
+		  listen: 127.0.0.1:$dns_port
 	EOF
 
 	if [ -n "$socks_port" ] && [ "$socks_port" != "0" ]; then
@@ -204,6 +216,16 @@ prepare_clash_runtime_config() {
 	fi
 
 	yq -M eval-all '. as $item ireduce ({}; . * $item )' "$raw_file" "$overlay_file" >"$runtime_file"
+
+	# Reuse existing local geodata files so Mihomo does not have to fetch them
+	# during startup in environments where DNS or outbound access is not ready yet.
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
+	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
+	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
+	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
+	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
+	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
 }
 
 get_host_ip() {
@@ -287,7 +309,7 @@ _exit() {
 }
 
 first_type() {
-	type -t -p "/bin/${1}" -p "/usr/bin/${1}" -p "${TMP_BIN_PATH}/${1}" -p "${1}" "$@" | head -n1
+	type -t -p "/bin/${1}" -p "/usr/bin/${1}" -p "/usr/libexec/${1}" -p "${TMP_BIN_PATH}/${1}" -p "${1}" "$@" | head -n1
 }
 
 ln_start_bin() {
@@ -427,6 +449,7 @@ add_dns_into_ipset() {
 
 start_dns() {
 	local ssrplus_dns="$(uci_get_by_type global pdnsd_enable 0)"
+	local global_server_type="$(uci_get_by_name "$GLOBAL_SERVER" type)"
 	local dnsproxy_dnsserver="$(uci_get_by_type global parse_method)"
 	if [ -n "$dnsproxy_dnsserver" ] && [ "$dnsproxy_dnsserver" != "parse_file" ]; then
 		dnsserver="$(uci_get_by_type global dnsproxy_tunnel_forward 8.8.4.4:53)"
@@ -436,6 +459,20 @@ start_dns() {
 		dnsserver="$(uci_get_by_type global tunnel_forward 8.8.4.4:53)"
 	fi
 	local run_mode="$(normalize_run_mode)"
+
+	if [ "$global_server_type" = "clash" ]; then
+		# Clash/Mihomo already provides its own DNS service. Tear down any legacy
+		# dns2tcp/dns2socks/dnsproxy/chinadns helpers from previous runs.
+		# In Clash mode, keep dnsmasq's default upstream resolvers for regular
+		# domains and let only gfwlist/blacklist domains be forwarded to
+		# Mihomo DNS on 127.0.0.1:$dns_port through the generated dnsmasq rules.
+		ps_list | grep -v "grep" | grep -E \
+			"${TMP_BIN_PATH}/dns2tcp|${TMP_BIN_PATH}/dns2socks|${TMP_BIN_PATH}/dns2socks-rust|${TMP_BIN_PATH}/dnsproxy|${TMP_BIN_PATH}/chinadns-ng|${TMP_BIN_PATH}/mosdns|ssrplus-dns" \
+			| awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
+		rm -f "$TMP_DNSMASQ_PATH/clash_dns.conf"
+		echolog "Clash 总节点启用 Mihomo 内置 DNS：仅 gfwlist 域名转发到 127.0.0.1#$dns_port，默认上游保持系统 DNS。"
+		ssrplus_dns="0"
+	fi
 
 	if [ "$ssrplus_dns" != "0" ]; then
 		if [ "$HAS_IPSET" -eq 1 ]; then
@@ -1096,9 +1133,14 @@ Start_Run() {
 			;;
 		clash)
 			local clash_socks_port=0
+			local mihomo_bin="$(first_type mihomo)"
 			if [ "$_local" == "1" ] && [ "$LOCAL_SERVER" = "$GLOBAL_SERVER" ]; then
 				clash_socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
 			fi
+			[ -x "$mihomo_bin" ] || {
+				echolog "Main node:Mihomo 内核不存在，请确认 /usr/bin/mihomo 或 /usr/libexec/mihomo 可执行。"
+				return 1
+			}
 			download_clash_config "$GLOBAL_SERVER" || {
 				echolog "Main node:Clash 配置不可用，启动中止。"
 				return 1
@@ -1108,7 +1150,7 @@ Start_Run() {
 				return 1
 			}
 			local clash_workdir="$(get_clash_workdir "$GLOBAL_SERVER")"
-			ln_start_bin $(first_type mihomo) ssr-retcp -d "$clash_workdir" -f "$clash_workdir/config.yaml"
+			ln_start_bin "$mihomo_bin" ssr-retcp -d "$clash_workdir" -f "$clash_workdir/config.yaml"
 			echolog "Main node:Mihomo (Clash) Started!"
 			;;
 		socks5)
@@ -1593,21 +1635,21 @@ stop() {
 			fi
 		fi
 	fi
-	if [ -z "$switch_server" ]; then
-		$PS -w | grep -v "grep" | grep ssr-switch | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
-		rm -f /var/lock/ssr-switch.lock
-		killall -q -9 kcptun-client
-	fi
-	$PS -w | grep -v "grep" | grep ssr-monitor | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
-	$PS -w | grep -v "grep" | grep ssr-rules | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
-	$PS -w | grep -v "grep" | grep "sleep 0000" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
-	( \
-		# Graceful kill first, so programs have the chance to stop its subprocesses
-		$PS -w | grep -v "grep" | grep "$TMP_PATH" | awk '{print $1}' | xargs kill >/dev/null 2>&1 ; \
-		sleep 3s; \
-		# Force kill hanged programs
-		$PS -w | grep -v "grep" | grep "$TMP_PATH" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 ; \
-	)
+		if [ -z "$switch_server" ]; then
+			ps_list | grep -v "grep" | grep ssr-switch | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
+			rm -f /var/lock/ssr-switch.lock
+			killall -q -9 kcptun-client
+		fi
+		ps_list | grep -v "grep" | grep ssr-monitor | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
+		ps_list | grep -v "grep" | grep ssr-rules | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
+		ps_list | grep -v "grep" | grep "sleep 0000" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
+		( \
+			# Graceful kill first, so programs have the chance to stop its subprocesses
+			ps_list | grep -v "grep" | grep "$TMP_PATH" | awk '{print $1}' | xargs kill >/dev/null 2>&1 ; \
+			sleep 3s; \
+			# Force kill hanged programs
+			ps_list | grep -v "grep" | grep "$TMP_PATH" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 ; \
+		)
 	killall -q -9 v2ray-plugin obfs-local xray-plugin shadow-tls
 	rm -f /var/lock/ssr-monitor.lock
 	if [ "$(uci -q get "dhcp.@dnsmasq[0]._unused_ssrp_changed")" = "1" ]; then

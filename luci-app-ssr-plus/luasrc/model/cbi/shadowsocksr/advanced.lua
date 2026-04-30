@@ -31,7 +31,7 @@ local lan_ip = lanip()
 local server_table = {}
 local type_table = {}
 local function is_finded(e)
-	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
+	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
 end
 
 local function clash_display_name(s)

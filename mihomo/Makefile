@@ -35,6 +35,8 @@ define Package/mihomo
   TITLE:=A rule based proxy in Go.
   URL:=https://wiki.metacubex.one
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle
+  ALTERNATIVES:=\
+    300:/usr/bin/mihomo:/usr/libexec/mihomo
 endef
 
 define Package/mihomo/description

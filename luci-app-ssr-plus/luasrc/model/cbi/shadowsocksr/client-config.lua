@@ -20,7 +20,7 @@ local xray_version_val = 0
 
 -- 确保正确判断程序是否存在
 local function is_finded(e)
-	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
+	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
 end
 
 local function is_installed(e)

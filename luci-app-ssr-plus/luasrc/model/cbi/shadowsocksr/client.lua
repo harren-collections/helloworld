@@ -34,7 +34,7 @@ local lan_ip = lanip()
 local validation = require "luci.cbi.datatypes"
 local clash_nodes = {}
 local function is_finded(e)
-	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
+	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
 end
 
 local function clash_display_name(s)
@@ -53,6 +53,10 @@ m:section(SimpleSection).template = "shadowsocksr/status"
 
 local server_table = {}
 uci:foreach("shadowsocksr", "servers", function(s)
+	if s.type == "clash" then
+		clash_nodes[s[".name"]] = true
+	end
+
 	if s.type ~= "tun" and s.alias then
 		server_table[s[".name"]] = "[%s]:%s" % {string.upper(s.v2ray_protocol or s.type), s.alias}
 	elseif s.type ~= "tun" and s.server and s.server_port then
@@ -61,7 +65,6 @@ uci:foreach("shadowsocksr", "servers", function(s)
 		local display_name = clash_display_name(s)
 		if display_name then
 			server_table[s[".name"]] = display_name
-			clash_nodes[s[".name"]] = true
 		end
 	end
 end)

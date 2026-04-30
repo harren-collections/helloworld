@@ -13,7 +13,7 @@ local tunnel_run = 0
 local gfw_count = 0
 local ad_count = 0
 local ip_count = 0
-local Process_list = luci.sys.exec("busybox ps -w")
+local Process_list = luci.sys.exec("busybox ps -w 2>/dev/null || busybox ps")
 local uci = require "luci.model.uci".cursor()
 local global_server = uci:get_first("shadowsocksr", "global", "global_server", "nil")
 local global_type = global_server ~= "nil" and (uci:get("shadowsocksr", global_server, "type") or "") or ""
@@ -123,6 +123,10 @@ if  Process_list:find("ssrplus/bin/dns2tcp") or
     Process_list:find("dnsproxy.*127.0.0.1.*5335") or
     Process_list:find("chinadns.*127.0.0.1.*5335") or
     (Process_list:find("ssrplus.dns") and Process_list:find("dns2socks.*127.0.0.1.*127.0.0.1.5335")) then
+	pdnsd_run = 1
+end
+
+if global_type == "clash" and Process_list:find("ssr%-retcp") then
 	pdnsd_run = 1
 end
 
