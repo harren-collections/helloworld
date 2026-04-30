@@ -3069,6 +3069,36 @@ msgstr "面板"
 msgid "Clash Panel"
 msgstr "Clash 面板"
 
+msgid "Close"
+msgstr "关闭"
+
+msgid "Selector"
+msgstr "选择器"
+
+msgid "DIRECT"
+msgstr "直连"
+
+msgid "REJECT"
+msgstr "拒绝"
+
+msgid "Proxy"
+msgstr "代理"
+
+msgid "Domestic"
+msgstr "国内"
+
+msgid "GlobalTV"
+msgstr "国际流媒体"
+
+msgid "AsianTV"
+msgstr "亚洲流媒体"
+
+msgid "Others"
+msgstr "其他"
+
+msgid "GLOBAL"
+msgstr "全局"
+
 msgid "This panel is available only when the current Clash total node is active."
 msgstr "该面板仅在当前 Clash 总节点已启用时可用。"
 

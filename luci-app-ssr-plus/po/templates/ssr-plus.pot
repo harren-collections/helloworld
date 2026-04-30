@@ -2683,6 +2683,36 @@ msgstr ""
 msgid "Clash Panel"
 msgstr ""
 
+msgid "Close"
+msgstr ""
+
+msgid "Selector"
+msgstr ""
+
+msgid "DIRECT"
+msgstr ""
+
+msgid "REJECT"
+msgstr ""
+
+msgid "Proxy"
+msgstr ""
+
+msgid "Domestic"
+msgstr ""
+
+msgid "GlobalTV"
+msgstr ""
+
+msgid "AsianTV"
+msgstr ""
+
+msgid "Others"
+msgstr ""
+
+msgid "GLOBAL"
+msgstr ""
+
 msgid "This panel is available only when the current Clash total node is active."
 msgstr ""
 
