@@ -57,17 +57,6 @@ end
 </script>
 <%- end %>
 
-<div class="cbi-section-actions" style="margin: 0 0 1em 0;">
-	<input
-		type="button"
-		id="ssr-probe-toggle"
-		class="btn cbi-button cbi-button-apply"
-		value="<%:Start Detection%>"
-		title="<%:Start Detection%>"
-		data-start-text="<%:Start Detection%>"
-		data-stop-text="<%:Stop Detection%>" />
-</div>
-
 <script type="text/javascript">
 		//<![CDATA[
 		window.addEventListener('load', function () {
@@ -76,17 +65,62 @@ end
 			const transports = document.getElementsByClassName("transport");
 			const wsPaths = document.getElementsByClassName("wsPath");
 			const tlss = document.getElementsByClassName("tls");
-			const toggleBtn = document.getElementById('ssr-probe-toggle');
-			const startText = toggleBtn ? toggleBtn.getAttribute('data-start-text') : 'Start Detection';
-			const stopText = toggleBtn ? toggleBtn.getAttribute('data-stop-text') : 'Stop Detection';
+			const startText = '<%:Start Detection%>';
+			const stopText = '<%:Stop Detection%>';
 			const maxConcurrent = 10;
 			let activeRunId = 0;
 			let probing = false;
 			let queueIndex = 0;
+			let toggleBtn = null;
+
+			const normalizeHeaderLayout = () => {
+				const headerRow = document.querySelector("#cbi-shadowsocksr-servers table tr");
+				if (!headerRow) {
+					return null;
+				}
+				const headerCells = headerRow.querySelectorAll("th");
+				if (headerCells.length > 1) {
+					const first = headerCells[0];
+					if (first && !first.textContent.trim()) {
+						first.parentNode.removeChild(first);
+					}
+				}
+				return headerRow;
+			};
+
+			const ensureProbeButton = () => {
+				if (toggleBtn) {
+					return toggleBtn;
+				}
+				const headerRow = normalizeHeaderLayout();
+				if (!headerRow) {
+					return null;
+				}
+				const headerCells = headerRow.querySelectorAll("th");
+				const targetHeader = headerCells.length ? headerCells[headerCells.length - 1] : null;
+				if (!targetHeader) {
+					return null;
+				}
+				targetHeader.style.width = "1%";
+				targetHeader.style.whiteSpace = "nowrap";
+				targetHeader.style.textAlign = "left";
+				toggleBtn = document.createElement("input");
+				toggleBtn.type = "button";
+				toggleBtn.id = "ssr-probe-toggle";
+				toggleBtn.className = "btn cbi-button cbi-button-apply";
+				toggleBtn.style.marginLeft = "8px";
+				toggleBtn.style.minWidth = "150px";
+				toggleBtn.value = startText;
+				toggleBtn.title = startText;
+				targetHeader.appendChild(toggleBtn);
+				return toggleBtn;
+			};
 
 			const setProbeState = (running) => {
 				probing = running;
-				if (toggleBtn) {
+				const btn = ensureProbeButton();
+				if (btn) {
+					toggleBtn = btn;
 					toggleBtn.value = running ? stopText : startText;
 					toggleBtn.title = toggleBtn.value;
 				}
@@ -181,6 +215,7 @@ end
 			setProbeState(false);
 			resetProbeDisplay();
 
+			ensureProbeButton();
 			if (toggleBtn) {
 				toggleBtn.onclick = function () {
 					if (probing) {

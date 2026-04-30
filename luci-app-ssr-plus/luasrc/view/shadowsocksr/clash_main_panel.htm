@@ -1,0 +1,107 @@
+<%+cbi/valueheader%>
+<%
+local clash_nodes = self.clash_nodes or {}
+local current_sid = self.map:get(section, "global_server") or "nil"
+-%>
+<div id="ssr-clash-main-panel-wrap">
+	<script type="text/javascript">
+	if (typeof(window.ssrClashRefreshSubscription) !== "function") {
+		window.ssrClashRefreshSubscription = function(btn, sid) {
+			var original = btn.value;
+			btn.disabled = true;
+			btn.value = '<%:Refresh...%>';
+			XHR.get('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_refresh")%>', {
+				sid: sid
+			}, function(x, result) {
+				btn.disabled = false;
+				btn.value = original;
+				if (result && result.success) {
+					btn.value = result.reapplied ? '<%:Reapply%>' : '<%:Refresh OK!%>';
+					setTimeout(function() { btn.value = original; }, 1200);
+				} else {
+					btn.value = '<%:Refresh Error!%>';
+					setTimeout(function() { btn.value = original; }, 1500);
+				}
+			});
+			return false;
+		}
+	}
+
+	(function() {
+		var clashNodes = {
+		<%
+			for sid, _ in pairs(clash_nodes) do
+		-%>
+			<%=string.format("%q", sid)%>: true,
+		<% end -%>
+		};
+
+		function updateClashPanelMain() {
+			var select = document.querySelector('select[name$=".global_server"]');
+			var wrap = document.getElementById('ssr-clash-main-panel-wrap');
+			var row = wrap ? wrap.closest('.cbi-value') : null;
+			var refreshBtn = document.getElementById('ssr-clash-main-refresh');
+			var panelBtn = document.getElementById('ssr-clash-main-open');
+			if (!select || !row || !refreshBtn || !panelBtn) {
+				return;
+			}
+			var sid = select.value;
+			if (sid && clashNodes[sid]) {
+				row.style.display = '';
+				refreshBtn.setAttribute('data-sid', sid);
+				panelBtn.setAttribute('data-sid', sid);
+			} else {
+				row.style.display = 'none';
+				refreshBtn.setAttribute('data-sid', '');
+				panelBtn.setAttribute('data-sid', '');
+			}
+		}
+
+		window.setTimeout(function() {
+			var select = document.querySelector('select[name$=".global_server"]');
+			var refreshBtn = document.getElementById('ssr-clash-main-refresh');
+			var panelBtn = document.getElementById('ssr-clash-main-open');
+			var wrap = document.getElementById('ssr-clash-main-panel-wrap');
+			var row = wrap ? wrap.closest('.cbi-value') : null;
+			if (row && !clashNodes['<%=current_sid%>']) {
+				row.style.display = 'none';
+			}
+			if (select) {
+				select.addEventListener('change', updateClashPanelMain);
+			}
+			if (refreshBtn) {
+				refreshBtn.onclick = function() {
+					var sid = this.getAttribute('data-sid');
+					if (!sid) return false;
+					return ssrClashRefreshSubscription(this, sid);
+				};
+			}
+			if (panelBtn) {
+				panelBtn.onclick = function() {
+					var sid = this.getAttribute('data-sid');
+					if (!sid) return false;
+					window.open('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_panel")%>?sid=' + encodeURIComponent(sid), '_blank');
+					return false;
+				};
+			}
+			updateClashPanelMain();
+		}, 0);
+	})();
+	</script>
+
+	<input
+		type="button"
+		id="ssr-clash-main-refresh"
+		class="btn cbi-button"
+		value="<%:Refresh Data%>"
+		title="<%:Refresh Data%>"
+		data-sid="<%=current_sid%>" />
+	<input
+		type="button"
+		id="ssr-clash-main-open"
+		class="btn cbi-button cbi-button-apply"
+		value="<%:Panel%>"
+		title="<%:Panel%>"
+		data-sid="<%=current_sid%>" />
+</div>
+<%+cbi/valuefooter%>

@@ -32,6 +32,7 @@ end
 
 local lan_ip = lanip()
 local validation = require "luci.cbi.datatypes"
+local clash_nodes = {}
 local function is_finded(e)
 	return luci.sys.exec(string.format('type -t -p "%s" 2>/dev/null', e)) ~= ""
 end
@@ -60,6 +61,7 @@ uci:foreach("shadowsocksr", "servers", function(s)
 		local display_name = clash_display_name(s)
 		if display_name then
 			server_table[s[".name"]] = display_name
+			clash_nodes[s[".name"]] = true
 		end
 	end
 end)
@@ -82,6 +84,10 @@ for _, key in pairs(key_table) do
 end
 o.default = "nil"
 o.rmempty = false
+
+o = s:option(DummyValue, "_clash_panel", translate("Clash Panel"))
+o.template = "shadowsocksr/clash_main_panel"
+o.clash_nodes = clash_nodes
 
 o = s:option(ListValue, "threads", translate("Multi Threads Option"))
 o:value("0", translate("Auto Threads"))

@@ -191,6 +191,8 @@ o:value("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) 
 o:value("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Windows")
 o:value("v2rayN/9.99", "v2rayN")
 
+s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
+
 -- [[ Servers Manage ]]--
 s = m:section(TypedSection, "servers")
 s.anonymous = true
@@ -263,10 +265,6 @@ function o.cfgvalue(self, section)
 	end
 	return Value.cfgvalue(self, section)
 end
-
-o = s:option(DummyValue, "_clash_panel", translate("Panel"))
-o.template = "shadowsocksr/clash_panel_button"
-o.width = "8%"
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 
 
