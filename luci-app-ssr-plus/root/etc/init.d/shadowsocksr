@@ -24,6 +24,7 @@ BACKUP_FILE="$BACKUP_DIR/99-shadowsocksr.save"
 CLASH_CONFIG_DIR="/etc/ssrplus/clash"
 CLASH_API_PORT="16756"
 CLASH_OUTBOUND_MARK="255"
+CLASH_YAML_HELPER="/usr/share/shadowsocksr/clash_yaml.lua"
 # 设置 DNSMASQ_CONF_DIR 和 TMP_DNSMASQ_PATH
 if [ -f /etc/openwrt_release ]; then
     # 获取默认的 DNSMASQ 配置 ID
@@ -156,7 +157,7 @@ download_clash_config() {
 
 	mkdir -p "$CLASH_CONFIG_DIR"
 	if curl -fsSL --connect-timeout 15 --retry 2 --insecure -A "$clash_user_agent" "$clash_url" -o "$tmp_file"; then
-		if yq -M -p yaml -o yaml -e 'has("proxies") or has("proxy-providers")' "$tmp_file" >/dev/null 2>&1; then
+		if /usr/bin/lua "$CLASH_YAML_HELPER" validate "$tmp_file" >/dev/null 2>&1; then
 			mv -f "$tmp_file" "$cache_file"
 			echolog "Clash 配置下载成功：$clash_url"
 			return 0
@@ -195,42 +196,12 @@ filter_clash_yaml_proxies() {
 	[ -n "$yaml_file" ] && [ -s "$yaml_file" ] || return 0
 	[ -n "$filter_words" ] || return 0
 
-	if ! yq -e '.proxies' "$yaml_file" >/dev/null 2>&1; then
+	if ! /usr/bin/lua "$CLASH_YAML_HELPER" validate "$yaml_file" >/dev/null 2>&1; then
 		return 0
 	fi
 
-	: > "$removed_file"
-	yq -r '.proxies[]?.name // ""' "$yaml_file" > "$names_file" 2>/dev/null || true
-
-	while IFS= read -r proxy_name; do
-		[ -n "$proxy_name" ] || continue
-		local matched=0
-		local old_ifs="$IFS"
-		IFS='/'
-		for word in $filter_words; do
-			[ -n "$word" ] || continue
-			case "$proxy_name" in
-				*"$word"*)
-					matched=1
-					break
-					;;
-			esac
-		done
-		IFS="$old_ifs"
-
-		if [ "$matched" = "1" ]; then
-			printf '%s\n' "$proxy_name" >> "$removed_file"
-		fi
-	done < "$names_file"
-
-	if [ -s "$removed_file" ]; then
-		while IFS= read -r proxy_name; do
-			[ -n "$proxy_name" ] || continue
-			removed_count=$((removed_count + 1))
-			echolog "Clash YAML 过滤节点: $proxy_name"
-			CLASH_PROXY_NAME="$proxy_name" yq -i '(.proxies // []) |= map(select(.name != strenv(CLASH_PROXY_NAME)))' "$yaml_file" >/dev/null 2>&1
-			CLASH_PROXY_NAME="$proxy_name" yq -i '(.proxy-groups[]?.proxies) |= map(select(. != strenv(CLASH_PROXY_NAME)))' "$yaml_file" >/dev/null 2>&1
-		done < "$removed_file"
+	removed_count="$(/usr/bin/lua "$CLASH_YAML_HELPER" filter "$yaml_file" "$filter_words" 2>/dev/null || echo 0)"
+	if [ -n "$removed_count" ] && [ "$removed_count" -gt 0 ] 2>/dev/null; then
 		echolog "Clash YAML 共过滤节点数量: $removed_count"
 	fi
 
@@ -252,7 +223,6 @@ prepare_clash_runtime_config() {
 
 	mkdir -p "$workdir"
 	cp -f "$cache_file" "$raw_file"
-	yq -M -i 'del(.tun) | del(.listeners) | del(.redir-port) | del(.tproxy-port) | del(.socks-port) | del(.mixed-port) | del(.port) | del(.external-controller) | del(.secret) | del(.allow-lan) | del(.dns.fake-ip-range) | del(.dns.fake-ip-filter)' "$raw_file"
 	filter_clash_yaml_proxies "$raw_file"
 
 	cat >"$overlay_file" <<-EOF
@@ -277,7 +247,7 @@ prepare_clash_runtime_config() {
 		echo "socks-port: $socks_port" >>"$overlay_file"
 	fi
 
-	yq -M eval-all '. as $item ireduce ({}; . * $item )' "$raw_file" "$overlay_file" >"$runtime_file"
+	/usr/bin/lua "$CLASH_YAML_HELPER" merge "$raw_file" "$overlay_file" "$runtime_file" >/dev/null 2>&1 || return 1
 
 	# Reuse existing local geodata files so Mihomo does not have to fetch them
 	# during startup in environments where DNS or outbound access is not ready yet.

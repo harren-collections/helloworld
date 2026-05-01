@@ -170,7 +170,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria
 config PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo
 	bool "Include Mihomo (Clash Support)"
 	select PACKAGE_mihomo
-	select PACKAGE_yq
+	select PACKAGE_lyaml
 	select PACKAGE_v2ray-geoip
 	select PACKAGE_v2ray-geosite
 	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
