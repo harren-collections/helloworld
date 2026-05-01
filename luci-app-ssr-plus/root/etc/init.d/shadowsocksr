@@ -137,12 +137,20 @@ get_clash_cache_file() {
 download_clash_config() {
 	local sid="$1"
 	local clash_url="$(uci_get_by_name "$sid" clash_url)"
+	local clash_path="$(uci_get_by_name "$sid" clash_path)"
 	local clash_user_agent="$(uci_get_by_name "$sid" clash_user_agent clash)"
 	local cache_file="$(get_clash_cache_file "$sid")"
 	local tmp_file="$TMP_PATH/clash-$sid.download.yaml"
 
+	if [ -n "$clash_path" ] && [ -s "$clash_path" ]; then
+		mkdir -p "$CLASH_CONFIG_DIR"
+		cp -f "$clash_path" "$cache_file"
+		echolog "Clash 本地配置加载成功：$clash_path"
+		return 0
+	fi
+
 	[ -n "$clash_url" ] || {
-		echolog "Clash 节点未配置订阅 URL，无法启动。"
+		echolog "Clash 节点未配置订阅 URL/本地配置，无法启动。"
 		return 1
 	}
 

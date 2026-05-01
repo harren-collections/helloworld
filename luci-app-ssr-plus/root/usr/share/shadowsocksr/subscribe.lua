@@ -30,6 +30,7 @@ local subscribe_url = ucic:get_first(name, 'server_subscribe', 'subscribe_url', 
 local filter_words = ucic:get_first(name, 'server_subscribe', 'filter_words', '过期时间/剩余流量')
 local save_words = ucic:get_first(name, 'server_subscribe', 'save_words', '')
 local user_agent = ucic:get_first(name, 'server_subscribe', 'user_agent', 'v2rayN/9.99')
+local local_clash_dir = "/etc/ssrplus/clash"
 
 local has_ss_rust = luci.sys.exec('type -t -p sslocal 2>/dev/null || type -t -p ssserver 2>/dev/null') ~= ""
 local has_ss_libev = luci.sys.exec('type -t -p ss-redir 2>/dev/null || type -t -p ss-local 2>/dev/null') ~= ""
@@ -225,6 +226,132 @@ local function processClashSubscription(url)
 		server = parsed.host,
 		server_port = server_port,
 		clash_url = url,
+		clash_user_agent = user_agent,
+		raw_alias = alias,
+		alias = alias
+	}
+
+	local saved_alias = result.alias
+	result.alias = nil
+	result.hashkey = md5(jsonStringify(result) .. "_" .. (saved_alias or ""))
+	result.alias = saved_alias
+	return result
+end
+
+local function yaml_quote(str)
+	str = tostring(str or "")
+	str = str:gsub("\\", "\\\\"):gsub('"', '\\"')
+	return '"' .. str .. '"'
+end
+
+local function is_ip_literal(value)
+	if not value or value == "" then
+		return false
+	end
+
+	if value:match("^%d+%.%d+%.%d+%.%d+$") then
+		return true
+	end
+
+	return value:find(":", 1, true) ~= nil
+end
+
+local function parseAnytlsShare(content)
+	local alias = ""
+	if content:find("#", 1, true) then
+		local idx = content:find("#", 1, true)
+		alias = UrlDecode(content:sub(idx + 1))
+		content = content:sub(1, idx - 1)
+	end
+
+	local main, query = content, ""
+	if content:find("%?", 1) then
+		local idx = content:find("%?", 1)
+		main = content:sub(1, idx - 1)
+		query = content:sub(idx + 1)
+	end
+
+	local userinfo, hostinfo = main:match("^([^@]+)@(.+)$")
+	if not userinfo or not hostinfo then
+		return nil
+	end
+
+	local password = UrlDecode(userinfo)
+	local server, port = hostinfo:match("^(.+):(%d+)$")
+	if not server or not port then
+		server = hostinfo
+		port = "443"
+	end
+	server = server:gsub("^%[", ""):gsub("%]$", "")
+
+	local params = {}
+	for _, v in ipairs(split(query, "&")) do
+		local t = split(v, "=")
+		if #t > 1 then
+			params[string.lower(t[1])] = UrlDecode(t[2] or "")
+		end
+	end
+
+	return {
+		name = (alias ~= "" and alias) or (server .. ":" .. port),
+		server = server,
+		port = tonumber(port),
+		password = password,
+		sni = (function()
+			local sni = params.sni or params.servername or ""
+			if is_ip_literal(sni) then
+				return ""
+			end
+			return sni
+		end)(),
+		allow_insecure = (params.insecure == "1" or params.allow_insecure == "1" or params.allowinsecure == "1"),
+		client_fingerprint = params.fp or params.fingerprint or ""
+	}
+end
+
+local function buildAnytlsClashYaml(entries, group_name)
+	local lines = {
+		"mode: rule",
+		"log-level: silent",
+		"proxies:"
+	}
+
+	for _, node in ipairs(entries) do
+		lines[#lines + 1] = "  - name: " .. yaml_quote(node.name)
+		lines[#lines + 1] = "    type: anytls"
+		lines[#lines + 1] = "    server: " .. yaml_quote(node.server)
+		lines[#lines + 1] = "    port: " .. tostring(node.port)
+		lines[#lines + 1] = "    password: " .. yaml_quote(node.password)
+		if node.sni and node.sni ~= "" then
+			lines[#lines + 1] = "    sni: " .. yaml_quote(node.sni)
+		end
+		if node.allow_insecure then
+			lines[#lines + 1] = "    skip-cert-verify: true"
+		end
+		if node.client_fingerprint and node.client_fingerprint ~= "" then
+			lines[#lines + 1] = "    client-fingerprint: " .. yaml_quote(node.client_fingerprint)
+		end
+	end
+
+	lines[#lines + 1] = "proxy-groups:"
+	lines[#lines + 1] = "  - name: " .. yaml_quote(group_name)
+	lines[#lines + 1] = "    type: select"
+	lines[#lines + 1] = "    proxies:"
+	for _, node in ipairs(entries) do
+		lines[#lines + 1] = "      - " .. yaml_quote(node.name)
+	end
+	lines[#lines + 1] = "rules:"
+	lines[#lines + 1] = "  - MATCH," .. group_name
+
+	return table.concat(lines, "\n") .. "\n"
+end
+
+local function processLocalClashSubscription(path, alias)
+	local result = {
+		type = "clash",
+		server = "127.0.0.1",
+		server_port = "0",
+		clash_path = path,
 		clash_user_agent = user_agent,
 		raw_alias = alias,
 		alias = alias
@@ -1306,9 +1433,18 @@ local function curl(url, user_agent)
 	end
 	-- 安全转义 URL：用单引号包裹，并转义内部的单引号
 	local safe_url = "'" .. url:gsub("'", "'\\''") .. "'"
+	local proxy_opt = ""
+	if proxy == '1' then
+		local socks_port = ucic:get_first(name, 'socks5_proxy', 'local_port', '')
+		local socks_enabled = ucic:get_first(name, 'socks5_proxy', 'enabled', '0')
+		if socks_enabled == '1' and socks_port ~= '' then
+			proxy_opt = string.format('--proxy socks5h://127.0.0.1:%s ', socks_port)
+		end
+	end
 	local cmd = string.format(
-		'curl -sSL --connect-timeout 20 --max-time 30 --retry 3 -H "Accept-Encoding: identity" %s --insecure --location %s',
+		'curl -sSL --http1.1 --connect-timeout 20 --max-time 30 --retry 3 -H "Accept-Encoding: identity" %s %s --insecure --location %s',
 		ua_opt,
+		proxy_opt,
 		safe_url
 	)
 	-- 执行命令并获取输出
@@ -1378,7 +1514,7 @@ local execute = function()
 	local updated = false
 	local service_stopped = false
 	for k, url in ipairs(subscribe_url) do
-		local raw, new_md5 = curl(url)
+		local raw, new_md5 = curl(url, user_agent)
 		log("raw 长度: "..#raw)
 		local groupHash = md5(url)
 		local old_md5 = read_old_md5(groupHash)
@@ -1456,6 +1592,41 @@ local execute = function()
 				else
 					-- ssd 外的格式
 					nodes = split(base64Decode(raw):gsub("\r\n", "\n"), "\n")
+				end
+
+				if not is_clash_subscription and not szType and type(nodes) == "table" then
+					local anytls_nodes = {}
+					local normal_nodes = {}
+					for _, node in ipairs(nodes) do
+						local line = trim(node or "")
+						if line:match("^anytls://") then
+							local parsed = parseAnytlsShare(line:gsub("^anytls://", ""))
+							if parsed then
+								table.insert(anytls_nodes, parsed)
+							end
+						elseif line ~= "" then
+							table.insert(normal_nodes, node)
+						end
+					end
+
+					if #anytls_nodes > 0 then
+						local parsed_url = URL.parse(url)
+						local alias = "Clash_" .. (parsed_url.host or groupHash)
+						local local_path = string.format("%s/%s.anytls.yaml", local_clash_dir, groupHash)
+						local yaml = buildAnytlsClashYaml(anytls_nodes, "Proxy")
+						nixio.fs.mkdirr(local_clash_dir)
+						nixio.fs.writefile(local_path, yaml)
+
+						local result = processLocalClashSubscription(local_path, alias)
+						if result and not cache[groupHash][result.hashkey] then
+							result.grouphashkey = groupHash
+							table.insert(nodeResult[index], result)
+							cache[groupHash][result.hashkey] = result
+							log('成功导入 AnyTLS 转 Clash 总节点: ' .. result.alias)
+						end
+					end
+
+					nodes = normal_nodes
 				end
 
 				-- 临时存储该订阅解析出的节点（带原始别名）
