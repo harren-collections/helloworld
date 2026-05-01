@@ -1466,18 +1466,9 @@ local function curl(url, user_agent)
 	end
 	-- 安全转义 URL：用单引号包裹，并转义内部的单引号
 	local safe_url = "'" .. url:gsub("'", "'\\''") .. "'"
-	local proxy_opt = ""
-	if proxy == '1' then
-		local socks_port = ucic:get_first(name, 'socks5_proxy', 'local_port', '')
-		local socks_enabled = ucic:get_first(name, 'socks5_proxy', 'enabled', '0')
-		if socks_enabled == '1' and socks_port ~= '' then
-			proxy_opt = string.format('--proxy socks5h://127.0.0.1:%s ', socks_port)
-		end
-	end
 	local cmd = string.format(
-		'curl -sSL --http1.1 --connect-timeout 20 --max-time 30 --retry 3 -H "Accept-Encoding: identity" %s %s --insecure --location %s',
+		'curl -sSL --http1.1 --connect-timeout 20 --max-time 30 --retry 3 -H "Accept-Encoding: identity" %s --insecure --location %s',
 		ua_opt,
-		proxy_opt,
 		safe_url
 	)
 	-- 执行命令并获取输出
@@ -1546,6 +1537,12 @@ end
 local execute = function()
 	local updated = false
 	local service_stopped = false
+
+	if proxy == '0' then
+		log('服务正在暂停')
+		luci.sys.init.stop(name)
+		service_stopped = true
+	end
 	for k, url in ipairs(subscribe_url) do
 		local raw, new_md5 = curl(url, user_agent)
 		log("raw 长度: "..#raw)
@@ -1557,8 +1554,10 @@ local execute = function()
 		log("old_md5: " .. tostring(old_md5))
 		log("new_md5: " .. tostring(new_md5))
 
-		if #raw > 0 then
-			if old_md5 and new_md5 == old_md5 then
+		if #raw == 0 then
+			log(url .. ': 获取内容为空')
+			loadOldNodes(groupHash)
+		elseif old_md5 and new_md5 == old_md5 then
 				log("订阅未变化, 跳过无需更新的订阅: " .. url)
 				-- 防止 diff 阶段误删未更新订阅节点
 				loadOldNodes(groupHash)
@@ -1568,17 +1567,10 @@ local execute = function()
 				--		tinsert(nodeResult[index], s)
 				--	end
 				--end)
-			else
+		else
 				updated = true
 				-- 保存更新后的 MD5 值到以 groupHash 为标识的临时文件中，用于下次订阅更新时进行对比
 				write_new_md5(groupHash, new_md5)
-
-				-- 暂停服务（仅当 MD5 有变化时才执行）
-				if proxy == '0' and not service_stopped then
-					log('服务正在暂停')
-					luci.sys.init.stop(name)
-					service_stopped = true
-				end
 
 				cache[groupHash] = {}
 				tinsert(nodeResult, {})
@@ -1738,9 +1730,6 @@ local execute = function()
 				end
 
 				log('成功解析节点数量: ' .. #groupRawNodes)
-			end
-		else
-			log(url .. ': 获取内容为空')
 		end
 	end
 	-- 输出日志并判断是否需要进行 diff
