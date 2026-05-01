@@ -146,4 +146,6 @@ if luci.sys.call('[ -f "/www/luci-static/resources/uci.js" ]') == 0 then
 	end
 end
 
+m:append(Template("shadowsocksr/control_layout"))
+
 return m

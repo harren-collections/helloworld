@@ -2401,16 +2401,16 @@ msgid "Update All Subscribe Servers"
 msgstr "更新所有订阅服务器节点"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:288
-msgid "Update Subscribe List"
-msgstr "更新订阅 URL 列表"
+msgid "Save Subscribe Settings"
+msgstr "保存订阅设置"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:121
 msgid "Update cycle (Day/Week)"
 msgstr "更新周期（天/周）"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:290
-msgid "Update subscribe url list first"
-msgstr "修改订阅 URL 和节点关键字后，请先点击更新"
+msgid "Save current subscribe settings"
+msgstr "保存当前订阅设置"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:1182
 msgid "Uplink Capacity(Default:Mbps)"
@@ -3183,6 +3183,18 @@ msgstr "加载中..."
 
 msgid "Ready."
 msgstr "就绪。"
+
+msgid "Subscribe Log"
+msgstr "订阅日志"
+
+msgid "Starting subscription update..."
+msgstr "正在开始订阅更新..."
+
+msgid "Subscribe complete, refreshing page..."
+msgstr "订阅完成，正在刷新页面..."
+
+msgid "Subscribe failed, refreshing page..."
+msgstr "订阅失败，正在刷新页面..."
 
 msgid "This Clash total node is not active. Apply this node first."
 msgstr "该 Clash 总节点当前未启用，请先应用该节点。"

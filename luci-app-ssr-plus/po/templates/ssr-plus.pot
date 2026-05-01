@@ -2243,7 +2243,7 @@ msgid "Update All Subscribe Servers"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:288
-msgid "Update Subscribe List"
+msgid "Save Subscribe Settings"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:121
@@ -2251,7 +2251,7 @@ msgid "Update cycle (Day/Week)"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:290
-msgid "Update subscribe url list first"
+msgid "Save current subscribe settings"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:1182
@@ -2792,6 +2792,18 @@ msgid "Loading..."
 msgstr ""
 
 msgid "Ready."
+msgstr ""
+
+msgid "Subscribe Log"
+msgstr ""
+
+msgid "Starting subscription update..."
+msgstr ""
+
+msgid "Subscribe complete, refreshing page..."
+msgstr ""
+
+msgid "Subscribe failed, refreshing page..."
 msgstr ""
 
 msgid "This Clash total node is not active. Apply this node first."

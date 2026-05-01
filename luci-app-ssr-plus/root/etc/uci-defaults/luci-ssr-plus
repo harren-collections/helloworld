@@ -43,6 +43,10 @@ if [ -s "/etc/config/shadowsocksr" ]; then
         uci -q set shadowsocksr.@server_subscribe[0].user_agent='v2rayN/9.99'
     fi
 
+    if ! uci -q get shadowsocksr.@server_subscribe[0].proxy > /dev/null; then
+        uci -q set shadowsocksr.@server_subscribe[0].proxy='1'
+    fi
+
     if ! uci -q get shadowsocksr.@global_xray_fragment[0] > /dev/null; then
         uci -q add shadowsocksr global_xray_fragment
         uci -q set shadowsocksr.@global_xray_fragment[0].fragment='0'
