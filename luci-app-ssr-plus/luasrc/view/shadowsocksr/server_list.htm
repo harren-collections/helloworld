@@ -65,6 +65,8 @@ end
 			const transports = document.getElementsByClassName("transport");
 			const wsPaths = document.getElementsByClassName("wsPath");
 			const tlss = document.getElementsByClassName("tls");
+			const types = document.getElementsByClassName("type");
+			const protos = document.getElementsByClassName("proto");
 			const startText = '<%:Start Detection%>';
 			const stopText = '<%:Stop Detection%>';
 			const maxConcurrent = 10;
@@ -129,10 +131,10 @@ end
 			const resetProbeDisplay = () => {
 				for (let i = 0; i < doms.length; i++) {
 					if (doms[i]) {
-						doms[i].innerHTML = '-- ms';
+						doms[i].innerHTML = 'N/A';
 					}
 					if (ports[i]) {
-						ports[i].innerHTML = '<font style="color:#999999">wait</font>';
+						ports[i].innerHTML = 'N/A';
 					}
 				}
 			};
@@ -140,23 +142,28 @@ end
 			const xhr = (index, runId) => {
 				return new Promise((res) => {
 					const dom = doms[index];
-					const port = ports[index];
-					const transport = transports[index];
-					const wsPath = wsPaths[index];
-					const tls = tlss[index];
-					if (!dom || !port || runId !== activeRunId) {
-						res();
-						return;
-					}
+						const port = ports[index];
+						const transport = transports[index];
+						const wsPath = wsPaths[index];
+						const tls = tlss[index];
+						const type = types[index];
+						const proto = protos[index];
+						if (!dom || !port || runId !== activeRunId) {
+							res();
+							return;
+						}
 					port.innerHTML = '<font style=\"color:#0072c3\">connect</font>';
-					XHR.get('<%=luci.dispatcher.build_url("admin/services/shadowsocksr/ping")%>', {
-						index,
-						domain: dom.getAttribute("hint"),
-						port: port.getAttribute("hint"),
-						transport: transport.getAttribute("hint"),
-						wsPath: wsPath.getAttribute("hint"),
-						tls: tls.getAttribute("hint")
-					},
+						XHR.get('<%=luci.dispatcher.build_url("admin/services/shadowsocksr/ping")%>', {
+							index,
+							sid: dom.getAttribute("data-sid"),
+							domain: dom.getAttribute("hint"),
+							port: port.getAttribute("hint"),
+							transport: transport.getAttribute("hint"),
+							wsPath: wsPath.getAttribute("hint"),
+							tls: tls.getAttribute("hint"),
+							type: type.getAttribute("hint"),
+							proto: proto.getAttribute("hint")
+						},
 					(x, result) => {
 						if (runId !== activeRunId) {
 							res();

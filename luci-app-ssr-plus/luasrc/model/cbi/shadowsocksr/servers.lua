@@ -215,6 +215,8 @@ end
 o.render = function(self, section, scope)
 	local cfg = get_server(section)
 	local stype = cfg.type
+	self.type = stype or ""
+	self.proto = cfg.v2ray_protocol or ""
 	if stype == "clash" then
 		self.transport = ""
 		self.ws_path = ""
@@ -236,12 +238,7 @@ o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocksr/ping"
 o.width = "10%"
 function o.cfgvalue(self, section)
-	local cfg = get_server(section)
-	local stype = cfg.type
-	if stype == "clash" then
-		return "N/A"
-	end
-	return cfg.server or "N/A"
+	return section
 end
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 

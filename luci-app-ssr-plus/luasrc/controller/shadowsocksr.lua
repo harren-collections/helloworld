@@ -414,6 +414,7 @@ function act_ping()
 	local host = luci.http.formvalue("host")
 	local type = (luci.http.formvalue("type") or ""):lower()
 	local proto = (luci.http.formvalue("proto") or ""):lower()
+	local sid = luci.http.formvalue("sid")
 	e.index = luci.http.formvalue("index")
 
 	local is_ip = domain and domain:match("^%d+%.%d+%.%d+%.%d+$")
@@ -428,22 +429,24 @@ function act_ping()
 			iret = luci.sys.call("ipset add ss_spec_wan_ac " .. domain .. " 2>/dev/null") == 0
 		end
 	end
-	-- Hysteria2 节点检测
+	-- Hysteria2 节点轻量 UDP 端口检测
 	if proto:find("hysteria2") or type:find("hysteria2") then
-		local node_id = e.index    
-		-- 调用Shell测试脚本
-		local cmd = string.format(
-			"/usr/share/shadowsocksr/hy2_test.sh url_test_hy2 %s",
-			node_id
-		)
-		local res = luci.sys.exec(cmd) or ""    
-		-- 解析结果
-		local http_code, time_pre = string.match(res, "(%d+):([%d%.]+)")    
-		if http_code == "200" or http_code == "204" then
-			e.socket = true
-			e.ping = math.floor(tonumber(time_pre or 0) * 1000)
-		else
-			e.socket = false
+		local udp_cmd = string.format("nping --udp -c 1 -p %d %s 2>/dev/null", port, domain)
+		local udp_raw = luci.sys.exec(udp_cmd) or ""
+		local udp_rtt = udp_raw:match("Avg rtt:%s*([0-9.]+)ms")
+		local udp_unreachable = udp_raw:match("[Pp]ort [Uu]nreachable") or udp_raw:match("ICMP")
+		local udp_sent = udp_raw:match("Raw packets sent:%s*1")
+
+		-- UDP 服务通常不会主动回包，未收到应答不等于端口不可用。
+		-- 仅在出现明显的不可达迹象时标记 fail，其余视为轻量可达。
+		e.socket = (udp_unreachable == nil) and (udp_sent ~= nil)
+		e.ping = udp_rtt and math.floor(tonumber(udp_rtt) or 0) or nil
+
+		if not e.ping then
+			local icmp_cmd = string.format("ping -c 1 -W 1 %s 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2", domain)
+			e.ping = tonumber(luci.sys.exec(icmp_cmd))
+		end
+		if not e.ping then
 			e.ping = 0
 		end
 	elseif transport == "ws" then
