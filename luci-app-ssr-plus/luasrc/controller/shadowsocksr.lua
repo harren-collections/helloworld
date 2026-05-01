@@ -202,6 +202,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "check"}, call("check_status"))
 	entry({"admin", "services", "shadowsocksr", "refresh"}, call("refresh_data"))
 	entry({"admin", "services", "shadowsocksr", "subscribe"}, call("subscribe"))
+	entry({"admin", "services", "shadowsocksr", "component_local_status"}, call("component_local_status")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_status"}, call("component_status")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_upgrade"}, call("component_upgrade")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "checkport"}, call("check_port"))
@@ -253,6 +254,17 @@ end
 function component_status()
 	local component = luci.http.formvalue("component")
 	local data, status, err = read_component_state(component, "info")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_component_json({component = component, error = err or "bad_request"})
+		return
+	end
+	write_component_json(data)
+end
+
+function component_local_status()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_component_state(component, "local_info")
 	if not data then
 		luci.http.status(status or 500, "Bad Request")
 		write_component_json({component = component, error = err or "bad_request"})

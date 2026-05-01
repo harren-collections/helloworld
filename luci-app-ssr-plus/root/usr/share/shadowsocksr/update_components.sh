@@ -17,6 +17,20 @@ trim_version() {
 	printf '%s' "$1" | sed 's/^v//'
 }
 
+version_gt() {
+	local left right first
+
+	left="$(trim_version "${1:-}")"
+	right="$(trim_version "${2:-}")"
+
+	[ -n "$left" ] || return 1
+	[ -n "$right" ] || return 1
+	[ "$left" = "$right" ] && return 1
+
+	first="$(printf '%s\n%s\n' "$left" "$right" | sort -V | tail -n 1)"
+	[ "$first" = "$left" ]
+}
+
 get_openwrt_arch() {
 	local arch
 
@@ -360,7 +374,7 @@ xray_info() {
 	arch="$(printf '%s\n' "$latest_output" | sed -n 's/^arch=//p' | sed -n '1p')"
 	asset="$(printf '%s\n' "$latest_output" | sed -n 's/^asset=//p' | sed -n '1p')"
 	can_upgrade=0
-	if [ -z "$current" ] || [ "$current" != "$latest_version" ]; then
+	if [ -z "$current" ] || version_gt "$latest_version" "$current"; then
 		can_upgrade=1
 	fi
 
@@ -406,12 +420,56 @@ mihomo_info() {
 	arch="$(printf '%s\n' "$latest_output" | sed -n 's/^arch=//p' | sed -n '1p')"
 	asset="$(printf '%s\n' "$latest_output" | sed -n 's/^asset=//p' | sed -n '1p')"
 	can_upgrade=0
-	if [ -z "$current" ] || [ "$current" != "$latest_version" ]; then
+	if [ -z "$current" ] || version_gt "$latest_version" "$current"; then
 		can_upgrade=1
 	fi
 
 	printf '%s\n' "$latest_output" | sed '/^download_url=/d'
 	log_kv can_upgrade "$can_upgrade"
+	log_kv error ''
+}
+
+xray_local_info() {
+	local current installed arch asset
+
+	installed=0
+	current=""
+	arch="$(get_openwrt_arch)"
+	asset="$(map_xray_asset "$arch" 2>/dev/null || true)"
+	if current="$(get_xray_current_version)" && [ -n "$current" ]; then
+		installed=1
+	fi
+
+	log_kv component xray
+	log_kv installed "$installed"
+	log_kv current_version "$current"
+	log_kv latest_version ''
+	log_kv arch "$arch"
+	log_kv asset "$asset"
+	log_kv can_upgrade 0
+	log_kv error ''
+}
+
+mihomo_local_info() {
+	local current installed arch asset
+
+	installed=0
+	current=""
+	arch="$(get_openwrt_arch)"
+	if current="$(get_mihomo_current_version)" && [ -n "$current" ]; then
+		installed=1
+		asset="$(map_mihomo_asset "$arch" "$current" 2>/dev/null || true)"
+	else
+		asset=""
+	fi
+
+	log_kv component mihomo
+	log_kv installed "$installed"
+	log_kv current_version "$current"
+	log_kv latest_version ''
+	log_kv arch "$arch"
+	log_kv asset "$asset"
+	log_kv can_upgrade 0
 	log_kv error ''
 }
 
@@ -440,7 +498,7 @@ xray_upgrade() {
 	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
 	download_url="$(printf '%s\n' "$latest_output" | sed -n 's/^download_url=//p' | sed -n '1p')"
 	current_before="$(get_xray_current_version 2>/dev/null || true)"
-	if [ -n "$current_before" ] && [ "$current_before" = "$latest_version" ]; then
+	if [ -n "$current_before" ] && ! version_gt "$latest_version" "$current_before"; then
 		log_kv success 1
 		log_kv previous_version "$current_before"
 		log_kv current_version "$current_before"
@@ -542,7 +600,7 @@ mihomo_upgrade() {
 	latest_version="$(printf '%s\n' "$latest_output" | sed -n 's/^latest_version=//p' | sed -n '1p')"
 	download_url="$(printf '%s\n' "$latest_output" | sed -n 's/^download_url=//p' | sed -n '1p')"
 	current_before="$(get_mihomo_current_version 2>/dev/null || true)"
-	if [ -n "$current_before" ] && [ "$current_before" = "$latest_version" ]; then
+	if [ -n "$current_before" ] && ! version_gt "$latest_version" "$current_before"; then
 		log_kv success 1
 		log_kv previous_version "$current_before"
 		log_kv current_version "$current_before"
@@ -632,18 +690,24 @@ case "${1:-}" in
 	xray_info)
 		xray_info
 		;;
+	xray_local_info)
+		xray_local_info
+		;;
 	xray_upgrade)
 		xray_upgrade
 		;;
 	mihomo_info)
 		mihomo_info
 		;;
+	mihomo_local_info)
+		mihomo_local_info
+		;;
 	mihomo_upgrade)
 		mihomo_upgrade
 		;;
 	*)
 		log_kv success 0
-		log_kv message 'Usage: update_components.sh xray_info|xray_upgrade|mihomo_info|mihomo_upgrade'
+		log_kv message 'Usage: update_components.sh xray_info|xray_local_info|xray_upgrade|mihomo_info|mihomo_local_info|mihomo_upgrade'
 		return 1 2>/dev/null || exit 1
 		;;
 esac

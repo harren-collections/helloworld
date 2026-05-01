@@ -57,7 +57,7 @@
 		return map[error] || error;
 	}
 
-	function renderComponentInfo(data) {
+	function renderComponentInfo(data, checkedRemote) {
 		var panel = document.getElementById('component-status');
 		var upgradeButton = document.getElementById('component-upgrade');
 		var action = document.getElementById('component-action');
@@ -86,6 +86,8 @@
 
 		if (data.error) {
 			html.push('<div style="color:red"><%:Status%>: ' + displayError(data.error) + '</div>');
+		} else if (!checkedRemote) {
+			html.push('<div style="color:#666"><%:Status%>: <%:No Check%></div>');
 		} else if (data.can_upgrade) {
 			html.push('<div style="color:#d48806"><%:Status%>: <%:Upgrade available%></div>');
 		} else {
@@ -95,7 +97,7 @@
 		panel.innerHTML = html.join('');
 
 		if (upgradeButton) {
-			upgradeButton.disabled = !!data.error || !data.latest_version || !data.can_upgrade;
+			upgradeButton.disabled = !!data.error || !checkedRemote || !data.latest_version || !data.can_upgrade;
 		}
 
 		if (action) {
@@ -122,7 +124,7 @@
 		}
 
 		XHR.get(url, { component: component }, function(x, rv) {
-			renderComponentInfo(rv);
+			renderComponentInfo(rv, true);
 			if (button) {
 				button.disabled = false;
 				button.value = doUpgrade ? '<%:Upgrade%>' : '<%:Check Update%>';
@@ -130,12 +132,20 @@
 		});
 	}
 
-	function onComponentChange() {
+	function queryLocalComponentInfo() {
 		var action = document.getElementById('component-action');
 		if (action) {
 			action.innerHTML = '';
 		}
-		queryComponentInfo(null, false);
+		XHR.get('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "component_local_status")%>', {
+			component: selectedComponent()
+		}, function(x, rv) {
+			renderComponentInfo(rv, false);
+		});
+	}
+
+	function onComponentChange() {
+		queryLocalComponentInfo();
 	}
 
 	window.setTimeout(function() {
