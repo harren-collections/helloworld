@@ -137,6 +137,9 @@ msgstr "已是最新版本"
 msgid "Download failed"
 msgstr "下载失败"
 
+msgid "Download Source"
+msgstr "下载源"
+
 msgid "Extract failed"
 msgstr "解压失败"
 
@@ -1469,8 +1472,23 @@ msgstr "最小值 1，最大值 128。省略或者填 0 时都等于 8。"
 msgid "Mixed as an alias of socks, default:Enabled."
 msgstr "Mixed 作为 SOCKS 的别名，默认：启用。"
 
+msgid "Mirror URL"
+msgstr "镜像地址"
+
 msgid "Min"
 msgstr "分"
+
+msgid "GitHub Direct"
+msgstr "GitHub 直连"
+
+msgid "Address"
+msgstr "地址"
+
+msgid "Component"
+msgstr "组件"
+
+msgid "Package Name"
+msgstr "组件包名称"
 
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/optimize_cbi_ui.htm:10
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/server_list.htm:735

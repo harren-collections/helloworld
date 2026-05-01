@@ -146,6 +146,9 @@ msgstr ""
 msgid "All Ports"
 msgstr ""
 
+msgid "Download Source"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/control.lua:39
 msgid "Allow all except listed"
 msgstr ""
@@ -1318,7 +1321,22 @@ msgstr ""
 msgid "Mixed as an alias of socks, default:Enabled."
 msgstr ""
 
+msgid "Mirror URL"
+msgstr ""
+
 msgid "Min"
+msgstr ""
+
+msgid "GitHub Direct"
+msgstr ""
+
+msgid "Address"
+msgstr ""
+
+msgid "Component"
+msgstr ""
+
+msgid "Package Name"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/optimize_cbi_ui.htm:10

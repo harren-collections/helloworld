@@ -159,8 +159,10 @@ local function read_component_state(component, action)
 		return nil, 400, "unsupported_component"
 	end
 
+	local mirror = luci.http.formvalue("mirror") or ""
 	local cmd = string.format(
-		"/bin/sh %s %s 2>/dev/null",
+		"COMPONENT_MIRROR=%s /bin/sh %s %s 2>/dev/null",
+		luci.util.shellquote(mirror),
 		luci.util.shellquote(COMPONENT_HELPER),
 		luci.util.shellquote(component .. "_" .. action)
 	)
@@ -203,6 +205,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "refresh"}, call("refresh_data"))
 	entry({"admin", "services", "shadowsocksr", "subscribe"}, call("subscribe"))
 	entry({"admin", "services", "shadowsocksr", "component_local_status"}, call("component_local_status")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "component_set_mirror"}, call("component_set_mirror")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_status"}, call("component_status")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_upgrade"}, call("component_upgrade")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "checkport"}, call("check_port"))
@@ -271,6 +274,27 @@ function component_local_status()
 		return
 	end
 	write_component_json(data)
+end
+
+function component_set_mirror()
+	local mirror = luci.http.formvalue("mirror") or "direct"
+	local allowed = {
+		direct = true,
+		ghproxy = true,
+		ghproxy_cc = true,
+		ghfast = true,
+		jsdelivr = true
+	}
+
+	if not allowed[mirror] then
+		mirror = "direct"
+	end
+
+	uci:set("shadowsocksr", "@global[0]", "component_mirror", mirror)
+	uci:commit("shadowsocksr")
+
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({ ret = 1, mirror = mirror })
 end
 
 function component_upgrade()

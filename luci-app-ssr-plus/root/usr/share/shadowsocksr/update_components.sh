@@ -17,6 +17,51 @@ trim_version() {
 	printf '%s' "$1" | sed 's/^v//'
 }
 
+get_component_mirror() {
+	if [ -n "${COMPONENT_MIRROR:-}" ]; then
+		echo "$COMPONENT_MIRROR"
+		return 0
+	fi
+	uci -q get shadowsocksr.@global[0].component_mirror 2>/dev/null || echo "direct"
+}
+
+mirror_wrap_url() {
+	local raw_url="$1"
+	local mirror
+
+	mirror="$(get_component_mirror)"
+	case "$mirror" in
+		direct|"")
+			printf '%s' "$raw_url"
+			;;
+		ghproxy)
+			printf 'https://mirror.ghproxy.com/%s' "$raw_url"
+			;;
+		ghproxy_cc)
+			printf 'https://ghproxy.cc/%s' "$raw_url"
+			;;
+		ghfast)
+			printf 'https://ghfast.top/%s' "$raw_url"
+			;;
+		jsdelivr)
+			case "$raw_url" in
+				https://github.com/XTLS/Xray-core/releases/download/*)
+					printf '%s' "$raw_url" | sed 's#https://github.com/XTLS/Xray-core/releases/download/\(v[^/]*\)/\(.*\)#https://fastly.jsdelivr.net/gh/XTLS/Xray-core@\1/\2#'
+					;;
+				https://github.com/MetaCubeX/mihomo/releases/download/*)
+					printf '%s' "$raw_url" | sed 's#https://github.com/MetaCubeX/mihomo/releases/download/\(v[^/]*\)/\(.*\)#https://fastly.jsdelivr.net/gh/MetaCubeX/mihomo@\1/\2#'
+					;;
+				*)
+					printf '%s' "$raw_url"
+					;;
+			esac
+			;;
+		*)
+			printf '%s' "$raw_url"
+			;;
+	esac
+}
+
 version_gt() {
 	local left right first
 
@@ -250,7 +295,7 @@ get_xray_latest_info() {
 	asset="$(map_xray_asset "$arch")" || return 2
 	tag="$(get_xray_latest_tag)" || return 3
 	version="$(trim_version "$tag")"
-	url="https://github.com/XTLS/Xray-core/releases/download/$tag/$asset"
+	url="$(mirror_wrap_url "https://github.com/XTLS/Xray-core/releases/download/$tag/$asset")"
 
 	[ -n "$tag" ] && [ -n "$version" ] && [ -n "$url" ] || return 4
 
@@ -330,7 +375,7 @@ get_mihomo_latest_info() {
 	tag="$(get_mihomo_latest_tag)" || return 3
 	version="$(trim_version "$tag")"
 	asset="$(map_mihomo_asset "$arch" "$version")" || return 2
-	url="https://github.com/MetaCubeX/mihomo/releases/download/$tag/$asset"
+	url="$(mirror_wrap_url "https://github.com/MetaCubeX/mihomo/releases/download/$tag/$asset")"
 
 	log_kv arch "$arch"
 	log_kv asset "$asset"
