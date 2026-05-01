@@ -882,8 +882,8 @@ start_udp() {
 		;;
 	v2ray)
 		gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_port
-		ln_start_bin $(first_type xray v2ray) v2ray run -c $udp_config_file
-		echolog "UDP TPROXY Relay:$($(first_type "xray" "v2ray") version | head -1) Started!"
+		ln_start_bin $(first_type xray) v2ray run -c $udp_config_file
+		echolog "UDP TPROXY Relay:$($(first_type xray) version | head -1) Started!"
 		;;
 	trojan) #client
 		gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_local_port
@@ -919,7 +919,7 @@ start_udp() {
 		local chain_type=$(uci_get_by_name $UDP_RELAY_SERVER chain_type)
 		case ${chain_type} in
 		vmess)
-			ln_start_bin $(first_type xray v2ray) v2ray run -c $udp_config_file
+			ln_start_bin $(first_type xray) v2ray run -c $udp_config_file
 			echolog "UDP TPROXY Relay:shadow-tls chain-to $($(first_type xray) --version) Started!"
 			;;
 		sslocal)
@@ -970,9 +970,9 @@ start_local() {
 	v2ray)
 		if [ "$_local" == "2" ]; then
 			gen_config_file $LOCAL_SERVER $type 4 0 $local_port
-			ln_start_bin $(first_type xray v2ray) v2ray run -c $local_config_file
+			ln_start_bin $(first_type xray) v2ray run -c $local_config_file
 		fi
-		echolog "Global_Socks5:$($(first_type "xray" "v2ray") version | head -1) Started!"
+		echolog "Global_Socks5:$($(first_type xray) version | head -1) Started!"
 		;;
 	trojan) #client
 		gen_config_file $LOCAL_SERVER $type 4 $local_port
@@ -1007,7 +1007,7 @@ start_local() {
 			local chain_type=$(uci_get_by_name $LOCAL_SERVER chain_type)
 			case ${chain_type} in
 			vmess)
-				ln_start_bin $(first_type xray v2ray) v2ray run -c $local_config_file
+				ln_start_bin $(first_type xray) v2ray run -c $local_config_file
 				echolog "Global Socks5 Proxy:shadow-tls chain-to$($(first_type xray) --version) Started!"
 				;;
 			sslocal)
@@ -1272,8 +1272,8 @@ Start_Run() {
 		;;
 	v2ray)
 		gen_config_file $GLOBAL_SERVER $type 1 $tcp_port $socks_port
-		ln_start_bin $(first_type xray v2ray) v2ray run -c $tcp_config_file
-		echolog "Main node:$($(first_type xray v2ray) version | head -1) Started!"
+		ln_start_bin $(first_type xray) v2ray run -c $tcp_config_file
+		echolog "Main node:$($(first_type xray) version | head -1) Started!"
 		;;
 	trojan)
 		gen_config_file $GLOBAL_SERVER $type 1 $tcp_port
@@ -1317,7 +1317,7 @@ Start_Run() {
 		case ${chain_type} in
 		vmess)
 			ln_start_bin $(first_type shadow-tls) shadow-tls config --config $chain_config_file
-			ln_start_bin $(first_type xray v2ray) v2ray run -c $tcp_config_file
+			ln_start_bin $(first_type xray) v2ray run -c $tcp_config_file
 			echolog "Mian node:shadow-tls chain-to $($(first_type xray) --version) Started!"
 			;;
 		sslocal)

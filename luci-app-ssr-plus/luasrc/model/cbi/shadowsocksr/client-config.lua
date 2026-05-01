@@ -319,7 +319,7 @@ o.value = sid
 
 -- 新增一个选择框，用于选择 Xray 或 Trojan 核心
 o = s:option(ListValue, "type", translate("Server Node Type"))
-if is_finded("xray") or is_finded("v2ray") then
+if is_finded("xray") then
 	o:value("v2ray", translate("V2Ray/XRay"))
 end
 if is_finded("ssr-redir") then
@@ -725,7 +725,7 @@ o:depends("type", "shadowtls")
 if is_finded("sslocal") then
 	o:value("sslocal", translate("ShadowSocks-rust Version"))
 end
-if is_finded("xray") or is_finded("v2ray") then
+if is_finded("xray") then
 	o:value("vmess", translate("Vmess Protocol"))
 end
 o.default = "sslocal"
@@ -946,7 +946,7 @@ o = s:option(Value, "ws_heartbeatPeriod", translate("HeartbeatPeriod(second)"))
 o.datatype = "integer"
 o:depends("transport", "ws")
 
-if is_finded("v2ray") then
+if is_finded("xray") then
 	-- WS前置数据
 	o = s:option(Value, "ws_ed", translate("Max Early Data"))
 	o:depends("ws_ed_enable", true)
