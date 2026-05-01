@@ -1026,7 +1026,8 @@ start_local() {
 			return 1
 			;;
 		*)
-			[ -e /proc/sys/net/ipv6 ] && local listenip='-i ::'
+			local listenip='-i 0.0.0.0'
+			[ -e /proc/sys/net/ipv6 ] && listenip='-i ::'
 			ln_start_bin $(first_type microsocks) microsocks $listenip -p $local_port tcp-udp-ssr-local
 		echolog "Global_Socks5:$type Started!"
 		;;
@@ -1506,12 +1507,14 @@ start_server() {
 			echolog "Server: $(get_name ${type}) Server$server_count Started!"
 			;;
 		socks5)
-			[ -e /proc/sys/net/ipv6 ] && local listenip='-i ::'
+			local listenip='-i 0.0.0.0'
+			[ -e /proc/sys/net/ipv6 ] && listenip='-i ::'
 			local username=$(uci_get_by_name $1 username)
 			local password=$(uci_get_by_name $1 password)
 			local auth_opts=""
-			if [ -n "$username" ] && [ -n "$password" ]; then
-				auth_opts="-u $username -P $password"
+			if [ -n "$username" ]; then
+				auth_opts="-u $username"
+				[ -n "$password" ] && auth_opts="$auth_opts -P $password"
 			fi
 			ln_start_bin $(first_type microsocks) microsocks $listenip -p $(uci_get_by_name $1 server_port) -1 $auth_opts ssr-server$server_count
 			echolog "Server:Socks5 Server$server_count Started!"
