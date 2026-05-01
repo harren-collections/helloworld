@@ -717,6 +717,9 @@ msgstr "延迟（ms）"
 msgid "Delete"
 msgstr "删除"
 
+msgid "Day/Week"
+msgstr "日/周"
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:315
 msgid "Delete All Subscribe Servers"
 msgstr "删除所有订阅服务器节点"
@@ -1187,6 +1190,9 @@ msgstr ""
 msgid "Health Check Timeout"
 msgstr "健康检查超时"
 
+msgid "Hour"
+msgstr "时"
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:817
 msgid "Heartbeat interval(second)"
 msgstr "保活心跳包发送间隔（单位：秒）"
@@ -1463,6 +1469,9 @@ msgstr "最小值 1，最大值 128。省略或者填 0 时都等于 8。"
 msgid "Mixed as an alias of socks, default:Enabled."
 msgstr "Mixed 作为 SOCKS 的别名，默认：启用。"
 
+msgid "Min"
+msgstr "分"
+
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/optimize_cbi_ui.htm:10
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/server_list.htm:735
 msgid "Move down"
@@ -1572,6 +1581,9 @@ msgstr "没有上传证书。"
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:385
 msgid "Noise"
 msgstr "噪声"
+
+msgid "Node order can be dragged with the mouse and takes effect immediately. The automatic switch order of server nodes is consistent with the node order in the table."
+msgstr "节点顺序可用鼠标拖拉后立即生效，服务器节点自动切换顺序和表中节点顺序一致。"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:549
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:941
@@ -2101,6 +2113,10 @@ msgstr "状态"
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:302
 msgid "Subscribe Default Auto-Switch"
 msgstr "订阅新节点自动切换设置"
+
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:277
+msgid "Subscribe Advanced Settings"
+msgstr "订阅高级设置"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:280
 msgid "Subscribe Filter Words"

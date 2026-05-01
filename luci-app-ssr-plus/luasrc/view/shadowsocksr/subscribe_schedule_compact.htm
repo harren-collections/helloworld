@@ -78,9 +78,9 @@ function ssrCompactSubscribeSchedule() {
 			return item;
 		}
 
-		wrap.appendChild(makeItem(shortLabel(weekRow, 'Day/Week'), weekSelect));
-		wrap.appendChild(makeItem(shortLabel(hourRow, 'Hour'), hourSelect));
-		wrap.appendChild(makeItem(shortLabel(minRow, 'Min'), minSelect));
+		wrap.appendChild(makeItem(shortLabel(weekRow, '<%:Day/Week%>'), weekSelect));
+		wrap.appendChild(makeItem(shortLabel(hourRow, '<%:Hour%>'), hourSelect));
+		wrap.appendChild(makeItem(shortLabel(minRow, '<%:Min%>'), minSelect));
 
 		weekField.innerHTML = '';
 		weekField.appendChild(wrap);
@@ -92,10 +92,57 @@ function ssrCompactSubscribeSchedule() {
 	compactScheduleRow();
 }
 
-if (document.readyState === 'loading') {
-	window.addEventListener('load', ssrCompactSubscribeSchedule);
-} else {
-	window.setTimeout(ssrCompactSubscribeSchedule, 0);
-}
+(function() {
+	var retryCount = 0;
+	var maxRetries = 30;
+	var retryTimer = null;
+	var observer = null;
+
+	function hasCompactLayout() {
+		return !!document.querySelector('.ssr-schedule-inline');
+	}
+
+	function tryCompactSchedule() {
+		ssrCompactSubscribeSchedule();
+		if (hasCompactLayout()) {
+			if (retryTimer) {
+				window.clearTimeout(retryTimer);
+				retryTimer = null;
+			}
+			if (observer) {
+				observer.disconnect();
+				observer = null;
+			}
+			return;
+		}
+
+		if (retryCount >= maxRetries) {
+			return;
+		}
+
+		retryCount = retryCount + 1;
+		retryTimer = window.setTimeout(tryCompactSchedule, 200);
+	}
+
+	function startCompactWatcher() {
+		tryCompactSchedule();
+
+		if (window.MutationObserver) {
+			observer = new MutationObserver(function() {
+				if (!hasCompactLayout()) {
+					tryCompactSchedule();
+				}
+			});
+			observer.observe(document.body, { childList: true, subtree: true });
+		}
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', startCompactWatcher);
+		window.addEventListener('load', tryCompactSchedule);
+	} else {
+		startCompactWatcher();
+	}
+})();
 //]]>
 </script>

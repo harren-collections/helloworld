@@ -569,6 +569,9 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
+msgid "Day/Week"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:315
 msgid "Delete All Subscribe Servers"
 msgstr ""
@@ -1039,6 +1042,9 @@ msgstr ""
 msgid "Health Check Timeout"
 msgstr ""
 
+msgid "Hour"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:817
 msgid "Heartbeat interval(second)"
 msgstr ""
@@ -1312,6 +1318,9 @@ msgstr ""
 msgid "Mixed as an alias of socks, default:Enabled."
 msgstr ""
 
+msgid "Min"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/optimize_cbi_ui.htm:10
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/server_list.htm:735
 msgid "Move down"
@@ -1420,6 +1429,9 @@ msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:385
 msgid "Noise"
+msgstr ""
+
+msgid "Node order can be dragged with the mouse and takes effect immediately. The automatic switch order of server nodes is consistent with the node order in the table."
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:549
@@ -1948,6 +1960,10 @@ msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:302
 msgid "Subscribe Default Auto-Switch"
+msgstr ""
+
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:277
+msgid "Subscribe Advanced Settings"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:280

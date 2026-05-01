@@ -253,7 +253,9 @@ end
 				ids.push(RegExp.$1);
 		}
 		var input = document.getElementById(store);
-		if (input) input.value = ids.join(" ");
+		var order = ids.join(" ");
+		if (input) input.value = order;
+		XHR.post('<%=luci.dispatcher.build_url("admin/services/shadowsocksr/save_order")%>', { order: order }, function() {});
 		return false;
 	}
 
@@ -266,11 +268,11 @@ end
 				cursor: move;
 				user-select: none;
 			}
-			/* 添加置顶和置底按钮的间距 */
+			.cbi-button-up,
+			.cbi-button-down,
 			.cbi-button-top,
 			.cbi-button-bottom {
-				margin-right: 4px;
-				display: inline-block;
+				display: none !important;
 			}
 			`;
 		document.head.appendChild(style);
@@ -356,62 +358,6 @@ end
 			el.ondragstart = ondragstart;
 			el.ondrop = ondrop;
 			el.ondragover = ondragover;
-
-			// 上移和下移按钮
-			var upBtns = el.querySelectorAll(".cbi-button.cbi-button-up");
-			if (upBtns && upBtns.length > 0) {
-				upBtns.forEach(function (_el) {
-					_el.onclick = function () {
-						moveUp(el.id);
-					};
-				});
-			}
-
-			var downBtns = el.querySelectorAll(".cbi-button.cbi-button-down");
-			if (downBtns && downBtns.length > 0) {
-				downBtns.forEach(function (_el) {
-					_el.onclick = function () {
-						moveDown(el.id);
-					};
-				});
-			}
-
-			// 添加置顶和置底按钮
-			var actionsCell = el.querySelector(".cbi-section-actions");
-			if (actionsCell) {
-				// 获取现有的按钮容器内的div
-				var buttonDiv = actionsCell.querySelector("div");
-
-				// 如果按钮容器内没有div，则创建一个
-				if (!buttonDiv) {
-					buttonDiv = document.createElement("div");
-					actionsCell.appendChild(buttonDiv);
-				}
-
-				// 置顶按钮
-				var toTopBtn = document.createElement("input");
-				toTopBtn.className = "btn cbi-button cbi-button-top";
-				toTopBtn.type = "button";
-				toTopBtn.value = "<%:To Top%>";
-				toTopBtn.title = "<%:To Top%>";
-				toTopBtn.onclick = function () {
-					moveToTop(el.id);
-				};
-
-				// 置底按钮
-				var toBottomBtn = document.createElement("input");
-				toBottomBtn.className = "btn cbi-button cbi-button-bottom";
-				toBottomBtn.type = "button";
-				toBottomBtn.value = "<%:To Bottom%>";
-				toBottomBtn.title = "<%:To Bottom%>";
-				toBottomBtn.onclick = function () {
-					moveToBottom(el.id);
-				};
-
-				// 将置顶和置底按钮插入到单元格的开头
-				buttonDiv.insertBefore(toBottomBtn, buttonDiv.firstChild);
-				buttonDiv.insertBefore(toTopBtn, buttonDiv.firstChild);
-			}
 		}
 	}
 

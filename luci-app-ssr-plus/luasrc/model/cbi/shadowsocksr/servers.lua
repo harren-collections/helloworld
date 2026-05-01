@@ -10,9 +10,9 @@ local URL = require "url"
 
 local m, s, o, node
 local server_count = 0
+local server_cache = {}
 
-local function clash_host_port(section)
-	local clash_url = uci:get("shadowsocksr", section, "clash_url")
+local function clash_host_port(clash_url)
 	if not clash_url or clash_url == "" then
 		return nil, nil
 	end
@@ -28,54 +28,24 @@ local function clash_host_port(section)
 	return host, port
 end
 
--- 确保正确判断程序是否存在
-local function is_finded(e)
-	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
-end
-
-local has_ss_rust = is_finded("sslocal") or is_finded("ssserver")
-local has_ss_libev = is_finded("ss-redir") or is_finded("ss-local")
-local has_xray = is_finded("xray")
-
-local function migrate_xray_protocol_nodes()
-	local changed = false
-
-	uci:foreach("shadowsocksr", "servers", function(section)
-		if section.type == "hysteria2" then
-			uci:set("shadowsocksr", section[".name"], "type", "v2ray")
-			uci:set("shadowsocksr", section[".name"], "v2ray_protocol", "hysteria2")
-			changed = true
-		elseif section.type == "trojan" then
-			uci:set("shadowsocksr", section[".name"], "type", "v2ray")
-			uci:set("shadowsocksr", section[".name"], "v2ray_protocol", "trojan")
-			changed = true
-		end
-	end)
-
-	local sid = uci:get_first("shadowsocksr", "server_subscribe")
-	if sid and uci:get("shadowsocksr", sid, "xray_hy2_type") then
-		uci:delete("shadowsocksr", sid, "xray_hy2_type")
-		changed = true
-	end
-	if sid and uci:get("shadowsocksr", sid, "xray_tj_type") then
-		uci:delete("shadowsocksr", sid, "xray_tj_type")
-		changed = true
-	end
-	if sid and uci:get("shadowsocksr", sid, "ss_type") then
-		uci:delete("shadowsocksr", sid, "ss_type")
-		changed = true
-	end
-
-	if changed then
-		uci:commit("shadowsocksr")
-	end
-end
-
-migrate_xray_protocol_nodes()
-
 uci:foreach("shadowsocksr", "servers", function(s)
 	server_count = server_count + 1
+	server_cache[s[".name"]] = {
+		type = s.type,
+		v2ray_protocol = s.v2ray_protocol,
+		alias = s.alias,
+		server_port = s.server_port,
+		server = s.server,
+		transport = s.transport,
+		ws_path = s.ws_path,
+		tls = s.tls,
+		clash_url = s.clash_url
+	}
 end)
+
+local function get_server(section)
+	return server_cache[section] or {}
+end
 
 m = Map("shadowsocksr", translate("Servers subscription and manage"))
 
@@ -119,13 +89,19 @@ o:depends("auto_update", "1")
 o = s:option(DynamicList, "subscribe_url", translate("Subscribe URL"))
 o.rmempty = true
 
+o = s:option(Flag, "subscribe_advanced", translate("Subscribe Advanced Settings"))
+o.rmempty = false
+o.default = "0"
+
 o = s:option(Value, "filter_words", translate("Subscribe Filter Words"))
 o.rmempty = true
 o.description = translate("Filter Words splited by /")
+o:depends("subscribe_advanced", "1")
 
 o = s:option(Value, "save_words", translate("Subscribe Save Words"))
 o.rmempty = true
 o.description = translate("Save Words splited by /")
+o:depends("subscribe_advanced", "1")
 
 o = s:option(Button, "update_Sub", translate("Update Subscribe List"))
 o.inputstyle = "reload"
@@ -140,15 +116,18 @@ o = s:option(Flag, "allow_insecure", translate("Allow subscribe Insecure nodes B
 o.rmempty = false
 o.description = translate("Subscribe nodes allows insecure connection as TLS client (insecure)")
 o.default = "0"
+o:depends("subscribe_advanced", "1")
 
 o = s:option(Flag, "switch", translate("Subscribe Default Auto-Switch"))
 o.rmempty = false
 o.description = translate("Subscribe new add server default Auto-Switch on")
 o.default = "1"
+o:depends("subscribe_advanced", "1")
 
 o = s:option(Flag, "proxy", translate("Through proxy update"))
 o.rmempty = false
 o.description = translate("Through proxy update list, Not Recommended ")
+o:depends("subscribe_advanced", "1")
 
 o = s:option(Button, "subscribe", translate("Update All Subscribe Servers"))
 o.rawhtml = true
@@ -190,6 +169,7 @@ o:value("curl", "Curl")
 o:value("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Linux")
 o:value("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0", "Edge for Windows")
 o:value("v2rayN/9.99", "v2rayN")
+o:depends("subscribe_advanced", "1")
 
 s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
 
@@ -197,6 +177,7 @@ s:append(cbi.Template("shadowsocksr/subscribe_schedule_compact"))
 s = m:section(TypedSection, "servers")
 s.anonymous = true
 s.addremove = true
+s.description = translate("Node order can be dragged with the mouse and takes effect immediately. The automatic switch order of server nodes is consistent with the node order in the table.")
 s.template = "cbi/tblsection"
 s:append(cbi.Template("shadowsocksr/optimize_cbi_ui"))
 s.sortable = true
@@ -211,45 +192,41 @@ end
 
 o = s:option(DummyValue, "type", translate("Type"))
 function o.cfgvalue(self, section)
-	return m:get(section, "v2ray_protocol") or Value.cfgvalue(self, section) or translate("None")
+	local cfg = get_server(section)
+	return cfg.v2ray_protocol or cfg.type or translate("None")
 end
 
 o = s:option(DummyValue, "alias", translate("Alias"))
-function o.cfgvalue(...)
-	return Value.cfgvalue(...) or translate("None")
-end
-
-o = s:option(DummyValue, "server_port", translate("Server Port"))
 function o.cfgvalue(self, section)
-	local stype = m:get(section, "type")
-	if stype == "clash" then
-		local _, port = clash_host_port(section)
-		return port or "N/A"
-	end
-	return Value.cfgvalue(self, section) or "N/A"
+	return get_server(section).alias or translate("None")
 end
 
 o = s:option(DummyValue, "server_port", translate("Socket Connected"))
 o.template = "shadowsocksr/socket"
 o.width = "10%"
 function o.cfgvalue(self, section)
-	local stype = m:get(section, "type")
+	local cfg = get_server(section)
+	local stype = cfg.type
 	if stype == "clash" then
 		return "N/A"
 	end
-	return Value.cfgvalue(self, section)
+	return cfg.server_port
 end
 o.render = function(self, section, scope)
-	local stype = m:get(section, "type")
+	local cfg = get_server(section)
+	local stype = cfg.type
 	if stype == "clash" then
 		self.transport = ""
 		self.ws_path = ""
 		self.tls = ""
 	else
-		self.transport = s:cfgvalue(section).transport
+		self.transport = cfg.transport or ""
 		if self.transport == 'ws' then
-			self.ws_path = s:cfgvalue(section).ws_path
-			self.tls = s:cfgvalue(section).tls
+			self.ws_path = cfg.ws_path or ""
+			self.tls = cfg.tls or ""
+		else
+			self.ws_path = ""
+			self.tls = ""
 		end
 	end
 	DummyValue.render(self, section, scope)
@@ -259,11 +236,12 @@ o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocksr/ping"
 o.width = "10%"
 function o.cfgvalue(self, section)
-	local stype = m:get(section, "type")
+	local cfg = get_server(section)
+	local stype = cfg.type
 	if stype == "clash" then
 		return "N/A"
 	end
-	return Value.cfgvalue(self, section)
+	return cfg.server or "N/A"
 end
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 

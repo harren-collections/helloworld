@@ -52,6 +52,7 @@ m = Map("shadowsocksr", translate("ShadowSocksR Plus+ Settings"), translate("<h3
 m:section(SimpleSection).template = "shadowsocksr/status"
 
 local server_table = {}
+local server_order = {}
 uci:foreach("shadowsocksr", "servers", function(s)
 	if s.type == "clash" then
 		clash_nodes[s[".name"]] = true
@@ -67,14 +68,10 @@ uci:foreach("shadowsocksr", "servers", function(s)
 			server_table[s[".name"]] = display_name
 		end
 	end
+	if s.type ~= "tun" and server_table[s[".name"]] then
+		table.insert(server_order, s[".name"])
+	end
 end)
-
-local key_table = {}
-for key, _ in pairs(server_table) do
-	table.insert(key_table, key)
-end
-
-table.sort(key_table)
 
 -- [[ Global Setting ]]--
 s = m:section(TypedSection, "global")
@@ -82,7 +79,7 @@ s.anonymous = true
 
 o = s:option(ListValue, "global_server", translate("Main Server"))
 o:value("nil", translate("Disable"))
-for _, key in pairs(key_table) do
+for _, key in ipairs(server_order) do
 	o:value(key, server_table[key])
 end
 o.default = "nil"

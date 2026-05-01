@@ -210,6 +210,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "clear_log"}, call("clear_log")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "run"}, call("act_status"))
 	entry({"admin", "services", "shadowsocksr", "ping"}, call("act_ping"))
+	entry({"admin", "services", "shadowsocksr", "save_order"}, call("save_order")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "reset"}, call("act_reset"))
 	entry({"admin", "services", "shadowsocksr", "restart"}, call("act_restart"))
 	entry({"admin", "services", "shadowsocksr", "delete"}, call("act_delete"))
@@ -225,6 +226,28 @@ function subscribe()
 	luci.sys.call("/usr/bin/lua /usr/share/shadowsocksr/subscribe.lua >>/var/log/ssrplus.log")
 	luci.http.prepare_content("application/json")
 	luci.http.write_json({ret = 1})
+end
+
+function save_order()
+	local order = luci.http.formvalue("order") or ""
+	local sids = {}
+
+	for sid in order:gmatch("%S+") do
+		if uci:get("shadowsocksr", sid) == "servers" then
+			sids[#sids + 1] = sid
+		end
+	end
+
+	if #sids > 0 then
+		uci:reorder("shadowsocksr", sids)
+		uci:commit("shadowsocksr")
+	end
+
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		ret = (#sids > 0) and 1 or 0,
+		count = #sids
+	})
 end
 
 function component_status()
