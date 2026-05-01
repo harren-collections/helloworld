@@ -18,6 +18,7 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_DNSPROXY \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria \
+	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Tuic_Client \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadow_TLS \
@@ -40,6 +41,7 @@ LUCI_DEPENDS:= \
 	+coreutils +coreutils-base64 +dns2tcp +dnsmasq-full \
 	+jq +ip-full +lua +lua-neturl +libuci-lua +microsocks +ipt2socks \
 	+tcping +resolveip +shadowsocksr-libev-ssr-check +curl +nping +unzip \
+	+PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy:3proxy \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Xray:xray-core \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG:chinadns-ng \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_DNS2SOCKS:dns2socks \
@@ -162,6 +164,10 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS
 config PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria
 	bool "Include Hysteria"
 	select PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG
+	default n
+
+config PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy
+	bool "Include HTTP Proxy"
 	default n
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo

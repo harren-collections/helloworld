@@ -7,6 +7,7 @@ local m, s, o
 local redir_run = 0
 local reudp_run = 0
 local sock5_run = 0
+local http_run = 0
 local server_run = 0
 local kcptun_run = 0
 local tunnel_run = 0
@@ -19,6 +20,8 @@ local global_server = uci:get_first("shadowsocksr", "global", "global_server", "
 local global_type = global_server ~= "nil" and (uci:get("shadowsocksr", global_server, "type") or "") or ""
 local global_socks_enabled = uci:get_first("shadowsocksr", "socks5_proxy", "enabled", "0") == "1"
 local global_socks_server = uci:get_first("shadowsocksr", "socks5_proxy", "server", "nil")
+local global_http_enabled = uci:get_first("shadowsocksr", "http_proxy", "enabled", "0") == "1"
+local has_3proxy = nixio.fs.access("/usr/bin/3proxy") or nixio.fs.access("/usr/libexec/3proxy") or nixio.fs.access("/bin/3proxy")
 -- html constants
 font_blue = [[<b style=color:green>]]
 style_blue = [[<b style=color:red>]]
@@ -73,6 +76,10 @@ if Process_list:find("tcp.udp.ssr.local") then
 	sock5_run = 1
 end
 
+if has_3proxy and Process_list:find("3proxy%-ssr%-http%.cfg") then
+	http_run = 1
+end
+
 if Process_list:find("tcp.udp.ssr.retcp") then
 	redir_run = 1
 	reudp_run = 1
@@ -108,6 +115,10 @@ if global_type == "clash" and Process_list:find("ssr%-retcp") then
 	if global_socks_enabled and (global_socks_server == "same" or global_socks_server == global_server) then
 		sock5_run = 1
 	end
+end
+
+if has_3proxy and global_http_enabled and http_run == 0 and Process_list:find("3proxy%-ssr%-http%.cfg") then
+	http_run = 1
 end
 
 if Process_list:find("kcptun.client") then
@@ -166,6 +177,16 @@ if sock5_run == 1 then
 	s.value = font_blue .. bold_on .. translate("Running") .. bold_off .. font_off
 else
 	s.value = style_blue .. bold_on .. translate("Not Running") .. bold_off .. font_off
+end
+
+if has_3proxy then
+	s = m:field(DummyValue, "http_run", translate("Global HTTP/HTTPS Proxy Server"))
+	s.rawhtml = true
+	if http_run == 1 then
+		s.value = font_blue .. bold_on .. translate("Running") .. bold_off .. font_off
+	else
+		s.value = style_blue .. bold_on .. translate("Not Running") .. bold_off .. font_off
+	end
 end
 
 s = m:field(DummyValue, "server_run", translate("Local Servers"))

@@ -64,6 +64,7 @@ server_count=0
 redir_tcp=0
 redir_udp=0
 local_enable=0
+http_enable=0
 kcp_enable_flag=0
 pdnsd_enable_flag=0
 
@@ -258,6 +259,33 @@ prepare_clash_runtime_config() {
 	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
 	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
 	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+}
+
+resolve_global_clash_socks_port() {
+	local socks_enabled=$(uci_get_by_type socks5_proxy enabled 0)
+	local socks_server=$(uci_get_by_type socks5_proxy server nil)
+	local socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
+	local http_enabled=$(uci_get_by_type http_proxy enabled 0)
+	local http_server=$(uci_get_by_type http_proxy server nil)
+	local http_port=$(uci_get_by_type http_proxy socks_port 1081)
+	local resolved_port=""
+
+	[ "$socks_server" = "same" ] && socks_server="$GLOBAL_SERVER"
+	[ "$http_server" = "same" ] && http_server="$GLOBAL_SERVER"
+
+	if [ "$socks_enabled" = "1" ] && [ "$socks_server" = "$GLOBAL_SERVER" ]; then
+		resolved_port="$socks_port"
+	fi
+
+	if [ "$http_enabled" = "1" ] && [ "$http_server" = "$GLOBAL_SERVER" ]; then
+		if [ -n "$resolved_port" ] && [ "$resolved_port" != "$http_port" ]; then
+			echolog "Global_HTTP: Mihomo/Clash 仅支持单个 socks-port，HTTP 代理将复用全局 SOCKS5 端口 $resolved_port。"
+		else
+			resolved_port="$http_port"
+		fi
+	fi
+
+	echo "$resolved_port"
 }
 
 get_host_ip() {
@@ -911,7 +939,7 @@ start_udp() {
 
 start_local() {
 	[ "$LOCAL_SERVER" = "nil" ] && return 1
-	local local_port=$(uci_get_by_type socks5_proxy local_port)
+	local local_port="${1:-$(uci_get_by_type socks5_proxy local_port)}"
 	local local_server_type=$(uci_get_by_name $LOCAL_SERVER type)
 	local type=$local_server_type
 	if [ "$local_server_type" = "ss-rust" ] || [ "$local_server_type" = "ss-libev" ]; then
@@ -1000,6 +1028,138 @@ start_local() {
 		;;
 	esac
 	local_enable=1
+	return 0
+}
+
+start_local_with_port() {
+	start_local "$1"
+}
+
+gen_3proxy_config() {
+	local cfg_file="$1"
+	local listen_port="$2"
+	local relay_socks_port="$3"
+	local auth_mode="$4"
+	local auth_user="$5"
+	local auth_pass="$6"
+
+	cat <<-EOF >"$cfg_file"
+		daemon
+		pidfile $TMP_PATH/3proxy.pid
+		nserver 8.8.8.8
+		nscache 65536
+		timeouts 1 5 30 60 180 1800 15 60
+		authcache ip 60
+		internal 0.0.0.0
+		external 0.0.0.0
+		flush
+	EOF
+
+	if [ "$auth_mode" = "password" ] && [ -n "$auth_user" ]; then
+		cat <<-EOF >>"$cfg_file"
+			auth strong
+			users $auth_user:CL:$auth_pass
+			allow $auth_user
+		EOF
+	else
+		cat <<-'EOF' >>"$cfg_file"
+			auth none
+			allow *
+		EOF
+	fi
+
+	cat <<-EOF >>"$cfg_file"
+		parent 1000 socks5 127.0.0.1 $relay_socks_port
+		proxy -n -a -p$listen_port
+		flush
+	EOF
+}
+
+start_http_proxy() {
+	[ "$HTTP_SERVER" = "nil" ] && return 1
+
+	local http_local_port=$(uci_get_by_type http_proxy local_port 3128)
+	local http_socks_port=$(uci_get_by_type http_proxy socks_port 1081)
+	local http_auth_mode=$(uci_get_by_type http_proxy http_auth none)
+	local http_user=$(uci_get_by_type http_proxy http_user)
+	local http_pass=$(uci_get_by_type http_proxy http_pass)
+	local http_server_type=$(uci_get_by_name $HTTP_SERVER type)
+	local need_local_start=1
+	local prev_local_server="$LOCAL_SERVER"
+	local prev_local_config_file="$local_config_file"
+	local prev_local_flag="$local_enable"
+	local prev_local_mode="$_local"
+	local http_config_file="$TMP_PATH/3proxy-ssr-http.cfg"
+	local global_socks_enabled=$(uci_get_by_type socks5_proxy enabled 0)
+	local global_socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
+	local global_socks_server=$(uci_get_by_type socks5_proxy server nil)
+	local resolved_socks_server="$global_socks_server"
+
+	[ "$http_local_port" = "$http_socks_port" ] && {
+		echolog "Global_HTTP: HTTP 监听端口与上游 SOCKS5 端口不能相同。"
+		return 1
+	}
+
+	if [ "$resolved_socks_server" = "same" ]; then
+		resolved_socks_server="$GLOBAL_SERVER"
+	fi
+
+	if [ "$global_socks_enabled" = "1" ] && [ "$http_socks_port" = "$global_socks_port" ] && [ "$resolved_socks_server" != "$HTTP_SERVER" ]; then
+		echolog "Global_HTTP: Relay SOCKS5 Port 已被全局 SOCKS5 代理占用，请改用其他端口。"
+		return 1
+	fi
+
+	if [ "$http_auth_mode" = "password" ] && [ -z "$http_user" ]; then
+		echolog "Global_HTTP: HTTP 认证模式为 password 时必须填写用户名。"
+		return 1
+	fi
+
+	case "$http_server_type" in
+		socks5)
+			echolog "Global_HTTP: 当前节点类型不支持作为 3proxy 的上游 SOCKS5 出口。"
+			return 1
+			;;
+	esac
+
+	if [ "$http_server_type" = "clash" ]; then
+		if [ "$HTTP_SERVER" != "$GLOBAL_SERVER" ]; then
+			echolog "Global_HTTP: Clash 节点仅支持选择 Same as Global Server 进行复用。"
+			return 1
+		fi
+		if [ "$http_socks_port" != "$global_socks_port" ] && [ "$global_socks_enabled" = "1" ] && [ "$resolved_socks_server" = "$HTTP_SERVER" ]; then
+			echolog "Global_HTTP: Mihomo/Clash 仅支持单个 socks-port，请让 HTTP 代理与全局 SOCKS5 使用相同的上游 SOCKS5 端口。"
+			return 1
+		fi
+	fi
+
+	if [ "$http_server_type" = "clash" ]; then
+		need_local_start=0
+	elif [ "$global_socks_enabled" = "1" ] && [ "$resolved_socks_server" = "$HTTP_SERVER" ] && [ "$global_socks_port" = "$http_socks_port" ]; then
+		need_local_start=0
+	else
+		LOCAL_SERVER="$HTTP_SERVER"
+		local_config_file="$TMP_PATH/tcp-http-ssr-local.json"
+		_local="2"
+		local_enable=0
+		start_local_with_port "$http_socks_port" || {
+			LOCAL_SERVER="$prev_local_server"
+			local_config_file="$prev_local_config_file"
+			local_enable="$prev_local_flag"
+			_local="$prev_local_mode"
+			return 1
+		}
+		LOCAL_SERVER="$prev_local_server"
+		local_config_file="$prev_local_config_file"
+		local_enable="$prev_local_flag"
+		_local="$prev_local_mode"
+	fi
+
+	[ "$need_local_start" = "0" ] && echolog "Global_HTTP: Reuse existing local Socks5 upstream on port $http_socks_port."
+
+	gen_3proxy_config "$http_config_file" "$http_local_port" "$http_socks_port" "$http_auth_mode" "$http_user" "$http_pass"
+	ln_start_bin $(first_type 3proxy) 3proxy  "$http_config_file"
+	echolog "Global_HTTP:3proxy HTTP/HTTPS Proxy Started!"
+	http_enable=1
 	return 0
 }
 
@@ -1166,7 +1326,8 @@ Start_Run() {
 		clash)
 			local clash_socks_port=0
 			local mihomo_bin="$(first_type mihomo)"
-			if [ "$_local" == "1" ] && [ "$LOCAL_SERVER" = "$GLOBAL_SERVER" ]; then
+			clash_socks_port="$(resolve_global_clash_socks_port)"
+			if [ -z "$clash_socks_port" ] && [ "$_local" == "1" ] && [ "$LOCAL_SERVER" = "$GLOBAL_SERVER" ]; then
 				clash_socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
 			fi
 			[ -x "$mihomo_bin" ] || {
@@ -1213,7 +1374,13 @@ load_config() {
 		# 没有开启 设置为 nil
 		LOCAL_SERVER=nil
 	fi
+	if [ "$(uci_get_by_type http_proxy enabled 0)" == "1" ]; then
+		HTTP_SERVER=$(uci_get_by_type http_proxy server nil)
+	else
+		HTTP_SERVER=nil
+	fi
 	if [ "$GLOBAL_SERVER" == "nil" ]; then
+		[ "$HTTP_SERVER" = "same" ] && HTTP_SERVER=nil
 		mode="tcp,udp"
 		_local="2"
 		local_config_file=$TMP_PATH/tcp-udp-ssr-local.json
@@ -1265,6 +1432,7 @@ load_config() {
 		start_local
 		;;
 	esac
+	[ "$HTTP_SERVER" = "same" ] && HTTP_SERVER=$GLOBAL_SERVER
 	return 0
 }
 
@@ -1542,6 +1710,7 @@ start() {
 	normalize_xray_protocol_nodes
 	if load_config; then
 		Start_Run
+		start_http_proxy
 		start_xhttp_addr
 		start_rules
 		start_dns
@@ -1579,6 +1748,7 @@ start() {
 			fi
 			echolog "广告过滤加载完毕。"
 		fi
+		start_http_proxy
 	fi
 	/etc/init.d/dnsmasq restart >/dev/null 2>&1
 	check_server
@@ -1696,6 +1866,7 @@ stop() {
 			rm -rf $DNSMASQ_CONF_DIR/dnsmasq-ssrplus.conf \
 				$TMP_DNSMASQ_PATH \
 				$TMP_PATH/*-ssr-*.json \
+				$TMP_PATH/3proxy* \
 				$TMP_PATH/clash-* \
 				$TMP_PATH/ssr-server*.json \
 				$TMP_PATH/*-config-*.json

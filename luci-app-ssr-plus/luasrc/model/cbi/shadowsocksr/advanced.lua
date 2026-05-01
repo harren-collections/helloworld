@@ -149,7 +149,7 @@ end
 -- [[ SOCKS5 Proxy ]]--
 s = m:section(TypedSection, "socks5_proxy", translate("Global SOCKS5 Proxy Server"))
 s.anonymous = true
-s.description = translate("Lightweight Socks5 transparent proxy nodes and Clash total nodes are not available here. Use Xray Socks for generic Socks outbound.")
+s.description = translate("Clash can be reused only in the Same as Global Server scenario. Use Xray Socks for generic Socks outbound.")
 
 -- Enable/Disable Option
 o = s:option(Flag, "enabled", translate("Enable"))
@@ -235,6 +235,74 @@ o = s:option(Value, "local_port", translate("Local Port"))
 o.datatype = "port"
 o.default = 1080
 o.rmempty = false
+
+if is_finded("3proxy") then
+	-- [[ HTTP/HTTPS Proxy ]]--
+	s = m:section(TypedSection, "http_proxy", translate("Global HTTP/HTTPS Proxy Server"))
+	s.anonymous = true
+	s.description = translate("Lightweight Socks5 transparent proxy nodes are not available here. Clash is supported only when reusing Same as Global Server.")
+
+	o = s:option(Flag, "enabled", translate("Enable"))
+	o.default = 0
+	o.rmempty = false
+
+	o = s:option(ListValue, "server", translate("Server"))
+	o:value("same", translate("Same as Global Server"))
+	for _, key in pairs(key_table) do
+		if type_table[key] ~= "socks5" then
+			o:value(key, server_table[key])
+		end
+	end
+	o.default = "same"
+	o.rmempty = false
+
+	o.cfgvalue = function(self, section)
+		local enabled = m:get(section, "enabled")
+		if enabled == "0" then
+			return m:get(section, "old_server")
+		end
+		return Value.cfgvalue(self, section)
+	end
+
+	o.write = function(self, section, value)
+		local enabled = m:get(section, "enabled")
+		if enabled == "0" then
+			local old_server = Value.cfgvalue(self, section)
+			if old_server ~= "nil" then
+				m:set(section, "old_server", old_server)
+			end
+			m:set(section, "server", "nil")
+		else
+			m:del(section, "old_server")
+			Value.write(self, section, value)
+		end
+	end
+
+	o = s:option(ListValue, "http_auth", translate("HTTP Auth Mode"), translate("3proxy HTTP proxy auth method, default:none."))
+	o.default = "none"
+	o:value("none", "NONE")
+	o:value("password", "PASSWORD")
+	o.rmempty = false
+
+	o = s:option(Value, "http_user", translate("HTTP User"), translate("Only when HTTP Auth Mode is password valid, Mandatory."))
+	o.rmempty = true
+	o:depends("http_auth", "password")
+
+	o = s:option(Value, "http_pass", translate("HTTP Password"), translate("Only when HTTP Auth Mode is password valid, Not mandatory."))
+	o.password = true
+	o.rmempty = true
+	o:depends("http_auth", "password")
+
+	o = s:option(Value, "local_port", translate("Local Port"))
+	o.datatype = "port"
+	o.default = 3128
+	o.rmempty = false
+
+	o = s:option(Value, "socks_port", translate("Relay SOCKS5 Port"), translate("Dedicated local Socks5 port used by 3proxy as upstream."))
+	o.datatype = "port"
+	o.default = 1081
+	o.rmempty = false
+end
 
 -- [[ fragmen Settings ]]--
 if is_finded("xray") then
