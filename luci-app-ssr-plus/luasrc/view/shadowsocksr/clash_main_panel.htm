@@ -198,6 +198,9 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 				sid: sid
 			}, function(x, result) {
 				var groupsEl = document.getElementById('ssr-clash-modal-groups');
+				if (result && result.sid) {
+					currentPanelSid = result.sid;
+				}
 				if (!result || !result.active) {
 					setPanelStatus('<%:This Clash total node is not active. Apply this node first.%>', '#ff7700');
 					if (groupsEl) {

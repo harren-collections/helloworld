@@ -42,13 +42,27 @@ local function is_active_clash_node(sid)
 	return clash_process_running()
 end
 
+local function resolve_active_clash_sid(sid)
+	if is_active_clash_node(sid) then
+		return sid
+	end
+
+	local current_sid = uci:get_first("shadowsocksr", "global", "global_server")
+	if is_active_clash_node(current_sid) then
+		return current_sid
+	end
+
+	return nil
+end
+
 local function clash_api_request(sid, method, path, body)
-	if not is_active_clash_node(sid) then
+	sid = resolve_active_clash_sid(sid)
+	if not sid then
 		return nil
 	end
 	local secret = get_clash_secret(sid)
 	local cmd = string.format(
-		"curl -sL -m 5 --retry 1 -H %s -H %s -X %s http://127.0.0.1:%s%s %s",
+		"curl -sL -m 5 --retry 1 -w '\n__CURL_STATUS__:%%{http_code}' -H %s -H %s -X %s http://127.0.0.1:%s%s %s",
 		luci.util.shellquote("Content-Type: application/json"),
 		luci.util.shellquote("Authorization: Bearer " .. secret),
 		method,
@@ -60,12 +74,17 @@ local function clash_api_request(sid, method, path, body)
 	if not output or output == "" then
 		return nil
 	end
-	return output
+	local body_output = output:gsub("\n__CURL_STATUS__:%d%d%d%s*$", "")
+	local code = output:match("__CURL_STATUS__:(%d%d%d)")
+	return {
+		code = tonumber(code),
+		body = body_output
+	}
 end
 
 local function clash_delay_ok(sid, candidates, probe_url)
 	local raw = clash_api_request(sid, "GET", "/proxies")
-	local parsed = raw and json.parse(raw or "") or nil
+	local parsed = raw and json.parse(raw.body or "") or nil
 	local proxies = parsed and parsed.proxies or nil
 	local tried = {}
 
@@ -83,7 +102,7 @@ local function clash_delay_ok(sid, candidates, probe_url)
 			"GET",
 			"/proxies/" .. urlencode(name) .. "/delay?timeout=5000&url=" .. urlencode(probe_url)
 		)
-		local delay_data = delay_raw and json.parse(delay_raw or "") or nil
+		local delay_data = delay_raw and json.parse(delay_raw.body or "") or nil
 		return delay_data and tonumber(delay_data.delay or 0) and tonumber(delay_data.delay or 0) > 0
 	end
 
@@ -265,16 +284,18 @@ end
 function clash_groups()
 	local sid = luci.http.formvalue("sid")
 	local groups = {}
-	local active = is_active_clash_node(sid)
+	local active_sid = resolve_active_clash_sid(sid)
+	local active = active_sid ~= nil
 	if active then
-		local raw = clash_api_request(sid, "GET", "/proxies")
+		local raw = clash_api_request(active_sid, "GET", "/proxies")
 		if raw then
-			groups = parse_clash_groups(raw)
+			groups = parse_clash_groups(raw.body)
 		end
 	end
 	luci.http.prepare_content("application/json")
 	luci.http.write_json({
 		active = active,
+		sid = active_sid,
 		groups = groups
 	})
 end
@@ -287,7 +308,8 @@ function clash_switch()
 		luci.http.status(400, "Bad Request")
 		return
 	end
-	if not is_active_clash_node(sid) then
+	local active_sid = resolve_active_clash_sid(sid)
+	if not active_sid then
 		luci.http.status(409, "Conflict")
 		luci.http.prepare_content("application/json")
 		luci.http.write_json({success = false, message = "inactive"})
@@ -295,9 +317,9 @@ function clash_switch()
 	end
 	local body = string.format('{"name":"%s"}', tostring(name):gsub('"', '\\"'))
 	local path = "/proxies/" .. urlencode(group)
-	local ret = clash_api_request(sid, "PUT", path, body)
+	local ret = clash_api_request(active_sid, "PUT", path, body)
 	luci.http.prepare_content("application/json")
-	luci.http.write_json({success = ret ~= nil})
+	luci.http.write_json({success = ret ~= nil and ret.code and ret.code >= 200 and ret.code < 300, sid = active_sid})
 end
 
 function clash_refresh()
