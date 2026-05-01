@@ -117,6 +117,14 @@ if global_type == "clash" and Process_list:find("ssr%-retcp") then
 	end
 end
 
+if global_type == "clash" and Process_list:find("mihomo") and Process_list:find("/clash%-") then
+	redir_run = 1
+	reudp_run = 1
+	if global_socks_enabled and (global_socks_server == "same" or global_socks_server == global_server) then
+		sock5_run = 1
+	end
+end
+
 if has_3proxy and global_http_enabled and http_run == 0 and Process_list:find("3proxy%-ssr%-http%.cfg") then
 	http_run = 1
 end

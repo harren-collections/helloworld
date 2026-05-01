@@ -377,10 +377,14 @@ ln_start_bin() {
 	local ln_name=${2}
 	shift 2
 	if [ "${file_func%%/*}" != "${file_func}" ]; then
-		[ ! -L "${file_func}" ] && {
-			ln -s "${file_func}" "${TMP_BIN_PATH}/${ln_name}" >/dev/null 2>&1
-			file_func="${TMP_BIN_PATH}/${ln_name}"
-		}
+		local ln_path="${TMP_BIN_PATH}/${ln_name}"
+		local src_real="$(readlink -f "${file_func}" 2>/dev/null || echo "${file_func}")"
+		local dst_real="$(readlink -f "${ln_path}" 2>/dev/null || true)"
+		if [ ! -L "${ln_path}" ] || [ "${dst_real}" != "${src_real}" ]; then
+			rm -f "${ln_path}"
+			ln -s "${file_func}" "${ln_path}" >/dev/null 2>&1
+		fi
+		file_func="${ln_path}"
 		[ -x "${file_func}" ] || echolog "$(readlink ${file_func}) 没有执行权限，无法启动：${file_func} $*"
 	fi
 	#echo "${file_func} $*" >&2
