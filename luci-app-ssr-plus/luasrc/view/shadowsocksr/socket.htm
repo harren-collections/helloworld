@@ -1,5 +1,20 @@
 <%+cbi/valueheader%>
-<span class="socket-connected" hint="<%=self:cfgvalue(section)%>">N/A</span>
+<%
+	local hint = self:cfgvalue(section)
+	local cache = self.detect_cache
+	local text = "N/A"
+	local color = "#999999"
+	if cache then
+		if cache.socket then
+			text = "ok"
+			color = "#249400"
+		else
+			text = "fail"
+			color = "#ff0000"
+		end
+	end
+%>
+<span class="socket-connected" hint="<%=hint%>"><font style="color:<%=color%>"><%=text%></font></span>
 <span class="transport" hint="<%=self.transport%>"></span>
 <span class="wsPath" hint="<%=self.ws_path%>"></span>
 <span class="tls" hint="<%=self.tls%>"></span>

@@ -10,6 +10,8 @@ local uci = require "luci.model.uci".cursor()
 
 local CLASH_API_PORT = "16756"
 local COMPONENT_HELPER = "/usr/share/shadowsocksr/update_components.sh"
+local SERVER_DETECT_CACHE = "/tmp/ssrplus_server_detect.json"
+local SERVER_DETECT_LOCK = "/tmp/ssrplus_server_detect.lock"
 local SUPPORTED_COMPONENTS = {
 	xray = true,
 	mihomo = true
@@ -152,6 +154,41 @@ local function parse_kv_output(raw)
 		end
 	end
 	return data
+end
+
+local function with_detect_cache_lock(fn)
+	for _ = 1, 40 do
+		if nixio.fs.mkdir(SERVER_DETECT_LOCK) then
+			local ok, ret = pcall(fn)
+			nixio.fs.rmdir(SERVER_DETECT_LOCK)
+			if ok then
+				return ret
+			end
+			return nil
+		end
+		nixio.nanosleep(0, 50000000)
+	end
+	return nil
+end
+
+local function load_detect_cache()
+	local raw = nixio.fs.readfile(SERVER_DETECT_CACHE)
+	if not raw or raw == "" then
+		return {}
+	end
+	local parsed = json.parse(raw)
+	return type(parsed) == "table" and parsed or {}
+end
+
+local function save_detect_cache_entry(sid, data)
+	if not sid or sid == "" then
+		return
+	end
+	with_detect_cache_lock(function()
+		local cache = load_detect_cache()
+		cache[sid] = data
+		nixio.fs.writefile(SERVER_DETECT_CACHE, json.stringify(cache))
+	end)
 end
 
 local function read_component_state(component, action)
@@ -530,6 +567,18 @@ function act_ping()
 		else
 			luci.sys.call("ipset del ss_spec_wan_ac " .. domain .. " 2>/dev/null")
 		end
+	end
+
+	if sid and sid ~= "" then
+		save_detect_cache_entry(sid, {
+			server = domain or "",
+			port = port or 0,
+			type = type or "",
+			proto = proto or "",
+			socket = e.socket and true or false,
+			ping = tonumber(e.ping) or 0,
+			time = os.time()
+		})
 	end
 
 	luci.http.prepare_content("application/json")

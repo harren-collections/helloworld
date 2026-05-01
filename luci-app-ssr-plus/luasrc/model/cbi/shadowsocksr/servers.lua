@@ -4,6 +4,7 @@ require "luci.sys"
 require "nixio.fs"
 require "luci.dispatcher"
 require "luci.model.uci"
+local json = require "luci.jsonc"
 local cbi = require "luci.cbi"
 local uci = require "luci.model.uci".cursor()
 local URL = require "url"
@@ -11,6 +12,7 @@ local URL = require "url"
 local m, s, o, node
 local server_count = 0
 local server_cache = {}
+local detect_cache = {}
 
 local function clash_host_port(clash_url)
 	if not clash_url or clash_url == "" then
@@ -45,6 +47,16 @@ end)
 
 local function get_server(section)
 	return server_cache[section] or {}
+end
+
+do
+	local raw = nixio.fs.readfile("/tmp/ssrplus_server_detect.json")
+	if raw and raw ~= "" then
+		local parsed = json.parse(raw)
+		if type(parsed) == "table" then
+			detect_cache = parsed
+		end
+	end
 end
 
 m = Map("shadowsocksr", translate("Servers subscription and manage"))
@@ -205,6 +217,7 @@ o = s:option(DummyValue, "server_port", translate("Socket Connected"))
 o.template = "shadowsocksr/socket"
 o.width = "10%"
 function o.cfgvalue(self, section)
+	self.detect_cache = detect_cache[section]
 	local cfg = get_server(section)
 	local stype = cfg.type
 	if stype == "clash" then
@@ -238,7 +251,8 @@ o = s:option(DummyValue, "server", translate("Ping Latency"))
 o.template = "shadowsocksr/ping"
 o.width = "10%"
 function o.cfgvalue(self, section)
-	return section
+	self.detect_cache = detect_cache[section]
+	return get_server(section).server or "N/A"
 end
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 

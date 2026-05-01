@@ -1,3 +1,16 @@
 <%+cbi/valueheader%>
-<span class="pingtime" hint="<%=self.map:get(section, "server") or "N/A"%>" data-sid="<%=section%>">N/A</span>
+<%
+	local hint = self:cfgvalue(section)
+	local cache = self.detect_cache
+	local text = "--- ms"
+	local color = "#ff0000"
+	if cache and tonumber(cache.ping or 0) > 0 then
+		local ping = tonumber(cache.ping)
+		text = tostring(ping) .. " ms"
+		if ping < 300 then color = "#ff3300" end
+		if ping < 200 then color = "#ff7700" end
+		if ping < 100 then color = "#249400" end
+	end
+%>
+<span class="pingtime" hint="<%=hint%>" data-sid="<%=section%>"><font style="color:<%=color%>"><%=text%></font></span>
 <%+cbi/valuefooter%>
