@@ -185,6 +185,58 @@ clash_cache() {
 	download_clash_config "$sid"
 }
 
+filter_clash_yaml_proxies() {
+	local yaml_file="$1"
+	local filter_words="$(uci_get_by_type server_subscribe filter_words '过期时间/剩余流量')"
+	local names_file="$TMP_PATH/clash-proxy-names.$$"
+	local removed_file="$TMP_PATH/clash-proxy-removed.$$"
+	local removed_count=0
+
+	[ -n "$yaml_file" ] && [ -s "$yaml_file" ] || return 0
+	[ -n "$filter_words" ] || return 0
+
+	if ! yq -e '.proxies' "$yaml_file" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	: > "$removed_file"
+	yq -r '.proxies[]?.name // ""' "$yaml_file" > "$names_file" 2>/dev/null || true
+
+	while IFS= read -r proxy_name; do
+		[ -n "$proxy_name" ] || continue
+		local matched=0
+		local old_ifs="$IFS"
+		IFS='/'
+		for word in $filter_words; do
+			[ -n "$word" ] || continue
+			case "$proxy_name" in
+				*"$word"*)
+					matched=1
+					break
+					;;
+			esac
+		done
+		IFS="$old_ifs"
+
+		if [ "$matched" = "1" ]; then
+			printf '%s\n' "$proxy_name" >> "$removed_file"
+		fi
+	done < "$names_file"
+
+	if [ -s "$removed_file" ]; then
+		while IFS= read -r proxy_name; do
+			[ -n "$proxy_name" ] || continue
+			removed_count=$((removed_count + 1))
+			echolog "Clash YAML 过滤节点: $proxy_name"
+			CLASH_PROXY_NAME="$proxy_name" yq -i '(.proxies // []) |= map(select(.name != strenv(CLASH_PROXY_NAME)))' "$yaml_file" >/dev/null 2>&1
+			CLASH_PROXY_NAME="$proxy_name" yq -i '(.proxy-groups[]?.proxies) |= map(select(. != strenv(CLASH_PROXY_NAME)))' "$yaml_file" >/dev/null 2>&1
+		done < "$removed_file"
+		echolog "Clash YAML 共过滤节点数量: $removed_count"
+	fi
+
+	rm -f "$names_file" "$removed_file"
+}
+
 prepare_clash_runtime_config() {
 	local sid="$1"
 	local local_port="$2"
@@ -201,13 +253,15 @@ prepare_clash_runtime_config() {
 	mkdir -p "$workdir"
 	cp -f "$cache_file" "$raw_file"
 	yq -M -i 'del(.tun) | del(.listeners) | del(.redir-port) | del(.tproxy-port) | del(.socks-port) | del(.mixed-port) | del(.port) | del(.external-controller) | del(.secret) | del(.allow-lan) | del(.dns.fake-ip-range) | del(.dns.fake-ip-filter)' "$raw_file"
+	filter_clash_yaml_proxies "$raw_file"
 
 	cat >"$overlay_file" <<-EOF
 		redir-port: $local_port
 		tproxy-port: $local_port
 		external-controller: 127.0.0.1:$CLASH_API_PORT
 		secret: $clash_secret
-		allow-lan: false
+		allow-lan: true
+		bind-address: 0.0.0.0
 		routing-mark: $CLASH_OUTBOUND_MARK
 		profile:
 		  store-selected: true

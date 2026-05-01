@@ -151,6 +151,20 @@ select_gzip_cmd() {
 	return 1
 }
 
+select_wget_cmd() {
+	if require_cmd wget-ssl; then
+		printf '%s' 'wget-ssl'
+		return 0
+	fi
+
+	if require_cmd wget; then
+		printf '%s' 'wget'
+		return 0
+	fi
+
+	return 1
+}
+
 curl_effective_url() {
 	local target="$1"
 	local effective=""
@@ -158,7 +172,7 @@ curl_effective_url() {
 	local location=""
 
 	headers="$(curl -kfsSI --http1.1 --connect-timeout 10 --retry 2 -A 'curl/8.0' -H 'Accept-Encoding: identity' "$target" 2>/dev/null || true)"
-	location="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed -n '1p')"
+	location="$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed 's/[[:space:]]\+\[following\]$//' | sed -n '1p')"
 	[ -n "$location" ] && effective="$location"
 	[ -n "$effective" ] || effective="$(curl -kfsSL --http1.1 --connect-timeout 10 --retry 2 -A 'curl/8.0' -H 'Accept-Encoding: identity' -o /dev/null -w '%{url_effective}' "$target" 2>/dev/null || true)"
 	[ -n "$effective" ] || return 1
@@ -166,10 +180,50 @@ curl_effective_url() {
 	printf '%s' "$effective"
 }
 
+wget_effective_url() {
+	local target="$1"
+	local wget_cmd output location
+
+	wget_cmd="$(select_wget_cmd)" || return 1
+	output="$($wget_cmd --server-response --max-redirect=0 --spider --timeout=20 --tries=3 --no-check-certificate "$target" 2>&1 || true)"
+	location="$(printf '%s\n' "$output" | sed -n 's/^[Ll]ocation:[[:space:]]*//p' | sed 's/\r$//' | sed 's/[[:space:]]\+\[following\]$//' | sed -n '1p')"
+
+	if [ -n "$location" ]; then
+		printf '%s' "$location"
+		return 0
+	fi
+
+	printf '%s\n' "$output" | grep -qE 'HTTP/[0-9.]+ 200' || return 1
+	printf '%s' "$target"
+}
+
+effective_url() {
+	local target="$1"
+	local url=""
+
+	url="$(curl_effective_url "$target" 2>/dev/null || true)"
+	[ -n "$url" ] || url="$(wget_effective_url "$target" 2>/dev/null || true)"
+	[ -n "$url" ] || return 1
+	printf '%s' "$url"
+}
+
+download_file() {
+	local url="$1"
+	local output="$2"
+	local wget_cmd
+
+	if curl -kfsSL --http1.1 --connect-timeout 10 --retry 2 -A 'curl/8.0' -H 'Accept-Encoding: identity' -o "$output" "$url" 2>/dev/null; then
+		return 0
+	fi
+
+	wget_cmd="$(select_wget_cmd)" || return 1
+	"$wget_cmd" --no-check-certificate --timeout=20 --tries=3 -O "$output" "$url" >/dev/null 2>&1
+}
+
 get_xray_latest_tag() {
 	local location tag
 
-	location="$(curl_effective_url "$XRAY_RELEASE_PAGE")" || return 1
+	location="$(effective_url "$XRAY_RELEASE_PAGE")" || return 1
 	tag="$(printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p')"
 	[ -n "$tag" ] || return 1
 	printf '%s' "$tag"
@@ -196,7 +250,7 @@ get_xray_latest_info() {
 get_mihomo_latest_tag() {
 	local location tag
 
-	location="$(curl_effective_url "$MIHOMO_RELEASE_PAGE")" || return 1
+	location="$(effective_url "$MIHOMO_RELEASE_PAGE")" || return 1
 	tag="$(printf '%s' "$location" | sed -n 's#.*/tag/\(v[0-9][^/]*\)$#\1#p' | sed -n '1p')"
 	[ -n "$tag" ] || return 1
 	printf '%s' "$tag"
@@ -407,7 +461,7 @@ xray_upgrade() {
 
 	trap "rm -rf '$tmp_dir'" EXIT INT TERM
 
-	if ! curl -fsSL --connect-timeout 10 --retry 2 -o "$zip_file" "$download_url"; then
+	if ! download_file "$download_url" "$zip_file"; then
 		log_kv success 0
 		log_kv message 'Download failed'
 		return 0
@@ -513,7 +567,7 @@ mihomo_upgrade() {
 
 	trap "rm -rf '$tmp_dir'" EXIT INT TERM
 
-	if ! curl -kfsSL --connect-timeout 10 --retry 2 -o "$gz_file" "$download_url"; then
+	if ! download_file "$download_url" "$gz_file"; then
 		log_kv success 0
 		log_kv message 'Download failed'
 		return 0
