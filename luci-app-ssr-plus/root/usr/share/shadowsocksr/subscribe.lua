@@ -139,6 +139,30 @@ local function trim(text)
 	end
 	return (sgsub(text, "^%s*(.-)%s*$", "%1"))
 end
+
+local function is_true_value(v)
+	if v == nil then
+		return false
+	end
+	if v == true then
+		return true
+	end
+	if type(v) == "string" then
+		local s = trim(string.lower(v))
+		return s == "1" or s == "true" or s == "yes" or s == "on"
+	end
+	return false
+end
+
+local function first_nonempty(tbl, keys)
+	for _, key in ipairs(keys) do
+		local value = tbl[key]
+		if value ~= nil and value ~= "" then
+			return value
+		end
+	end
+	return nil
+end
 -- md5
 local function md5(content)
 	local stdout = luci.sys.exec('echo \"' .. urlEncode(content) .. '\" | md5sum | cut -d \" \" -f1')
@@ -1021,14 +1045,23 @@ local function processData(szType, content, cfgid)
 				end
 			end
 
-			if params.peer or params.sni then
-				-- 未指定peer（sni）默认使用remote addr
-				result.tls_host = params.peer or params.sni
+			do
+				local tls_host = first_nonempty(params, {"peer", "sni", "host"})
+				if tls_host then
+					-- 未指定 peer/sni 时，兼容使用 host 作为 TLS Host
+					result.tls_host = tls_host
+				end
 			end
 			-- 处理 insecure 参数
-			if params.allowInsecure or params.allowinsecure or params.insecure then
-				local insecure = params.allowInsecure or params.allowinsecure or params.insecure
-				if insecure == true or insecure == "1" or insecure == "true" then
+			do
+				local insecure = first_nonempty(params, {
+					"allowInsecure",
+					"allowinsecure",
+					"allow_insecure",
+					"insecure",
+					"skip-cert-verify"
+				})
+				if is_true_value(insecure) then
 					result.insecure = "1"
 				end
 			end
