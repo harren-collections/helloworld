@@ -905,10 +905,6 @@ msgstr ""
 msgid "GFW List Mode"
 msgstr ""
 
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/control.lua:68
-msgid "Game Mode Host List"
-msgstr ""
-
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/status.lua:134
 msgid "Game Mode UDP Relay"
 msgstr ""
