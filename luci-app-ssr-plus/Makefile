@@ -175,7 +175,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo
 	select PACKAGE_v2ray-geoip
 	select PACKAGE_v2ray-geosite
 	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
-	default n
+	default y if aarch64||arm||i386||loongarch64||riscv64||x86_64
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Tuic_Client
 	bool "Include Tuic-Client"
