@@ -1940,7 +1940,7 @@ msgid "YAML Reload Failed!"
 msgstr "YAML 重载失败！"
 
 msgid "Reset Default Proxies Rules"
-msgstr "重置默认代理规则"
+msgstr "重置代理分组规则"
 
 msgid "Reset saved Mihomo proxy-group selections and restore YAML defaults?"
 msgstr "要清空已保存的 Mihomo 分组选择，并恢复为 YAML 默认值吗？"
@@ -3311,3 +3311,6 @@ msgstr "该 Clash 总节点当前未启用，请先应用该节点。"
 
 msgid "Include Mihomo (Clash Support)"
 msgstr "包含 Mihomo（Clash 支持）"
+
+msgid "Mihomo Pannel"
+msgstr "Mihomo 面板"

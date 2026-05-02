@@ -283,6 +283,8 @@ if upload_errmessage then
 elseif upload_message then
 	m.message = upload_message
 end
+local style_section = m:section(SimpleSection)
+style_section.template = "shadowsocksr/servers_subscribe_url_style"
 
 -- Server Subscribe
 s = m:section(TypedSection, "server_subscribe")

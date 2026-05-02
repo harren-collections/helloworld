@@ -2921,3 +2921,6 @@ msgstr ""
 
 msgid "Include Mihomo (Clash Support)"
 msgstr ""
+
+msgid "Mihomo Pannel"
+msgstr ""
