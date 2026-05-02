@@ -17,6 +17,58 @@ local SUPPORTED_COMPONENTS = {
 	mihomo = true
 }
 
+local function normalize_ping_ms(value, scale)
+	local num = tonumber(value)
+	if not num or num <= 0 then
+		return nil
+	end
+	local scaled = scale and (num * scale) or num
+	if scaled > 0 and scaled < 1 then
+		return 1
+	end
+	return math.floor(scaled + 0.5)
+end
+
+local function detect_tls_handshake_ms(domain, port, path, resolve_host, server_ip, is_websocket)
+	if not domain or domain == "" or not port or port <= 0 then
+		return nil
+	end
+
+	local final_host = (resolve_host and resolve_host ~= "") and resolve_host or domain
+	local resolve_arg = ""
+	if server_ip and server_ip ~= "" and final_host ~= server_ip then
+		resolve_arg = string.format("--resolve '%s:%d:%s' ", final_host, port, server_ip)
+	end
+
+	local ws_headers = ""
+	if is_websocket then
+		ws_headers = string.format(
+			"-H %s -H %s -H %s -H %s ",
+			luci.util.shellquote("Connection: Upgrade"),
+			luci.util.shellquote("Upgrade: websocket"),
+			luci.util.shellquote("Sec-WebSocket-Key: SGVsbG8sIHdvcmxkIQ=="),
+			luci.util.shellquote("Sec-WebSocket-Version: 13")
+		)
+	end
+
+	local host_header = (final_host and final_host ~= "") and ("-H " .. luci.util.shellquote("Host: " .. final_host) .. " ") or ""
+	local url = string.format("https://%s:%d%s", final_host, port, path or "")
+	local cmd = string.format(
+		"curl --http1.1 -m 3 -ksS -o /dev/null %s%s%s -w 'time_connect=%%{time_connect}\\ntime_appconnect=%%{time_appconnect}\\nhttp_code=%%{http_code}' '%s' 2>/dev/null",
+		resolve_arg, host_header, ws_headers, url
+	)
+	local result = luci.sys.exec(cmd) or ""
+	local appconnect = tonumber(result:match("time_appconnect=([0-9.]+)"))
+	if appconnect and appconnect > 0 then
+		return normalize_ping_ms(appconnect, 1000)
+	end
+	local connect = tonumber(result:match("time_connect=([0-9.]+)"))
+	if connect and connect > 0 then
+		return normalize_ping_ms(connect, 1000)
+	end
+	return nil
+end
+
 local function urlencode(str)
 	if not str then return "" end
 	return tostring(str):gsub("[^%w%-_%.~]", function(c)
@@ -448,14 +500,17 @@ function act_ping()
 	local port = tonumber(luci.http.formvalue("port") or 0)
 	local transport = (luci.http.formvalue("transport") or ""):lower()
 	local wsPath = luci.http.formvalue("wsPath") or ""
+	local host = luci.http.formvalue("host") or ""
+	local tls_host = luci.http.formvalue("tlsHost") or ""
 	local tls = luci.http.formvalue("tls")
-	local host = luci.http.formvalue("host")
 	local type = (luci.http.formvalue("type") or ""):lower()
 	local proto = (luci.http.formvalue("proto") or ""):lower()
 	local sid = luci.http.formvalue("sid")
 	e.index = luci.http.formvalue("index")
 
 	local is_ip = domain and domain:match("^%d+%.%d+%.%d+%.%d+$")
+	local probe_host = (tls_host ~= "" and tls_host) or (host ~= "" and host) or domain
+	local prefers_handshake_latency = (type == "v2ray")
 
 	-- 临时放行防火墙逻辑
 	local use_nft = luci.sys.call("command -v nft >/dev/null") == 0
@@ -478,7 +533,7 @@ function act_ping()
 		-- UDP 服务通常不会主动回包，未收到应答不等于端口不可用。
 		-- 仅在出现明显的不可达迹象时标记 fail，其余视为轻量可达。
 		e.socket = (udp_unreachable == nil) and (udp_sent ~= nil)
-		e.ping = udp_rtt and math.floor(tonumber(udp_rtt) or 0) or nil
+		e.ping = udp_rtt and normalize_ping_ms(udp_rtt) or nil
 
 		if not e.ping then
 			local icmp_cmd = string.format("ping -c 1 -W 1 %s 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2", domain)
@@ -491,24 +546,28 @@ function act_ping()
 		-- WebSocket 探测
 		local result = ""
 		local success = false
+		local icmp_cmd = string.format("ping -c 1 -W 1 %s 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2", domain)
+		e.ping = tonumber(luci.sys.exec(icmp_cmd))
 		-- WebSocket 探测 (适用于域名，或带 SNI 的 IP)
-		if not is_ip or (host and host ~= "") then
+		if not is_ip or probe_host ~= domain then
 			local resolve_arg = ""
-			local final_domain = domain
-			if is_ip and host and host ~= "" then
+			local final_domain = probe_host
+			if is_ip and probe_host and probe_host ~= "" then
 				-- IP 模式下使用 --resolve 强制指定 SNI，解决 TLS 握手失败
-				resolve_arg = string.format("--resolve '%s:%d:%s' ", host, port, domain)
-				final_domain = host
+				resolve_arg = string.format("--resolve '%s:%d:%s' ", probe_host, port, domain)
 			end
 			local prefix = (tls == '1') and "https://" or "http://"
 			local address = prefix .. final_domain .. ':' .. port .. wsPath
 			local cmd = string.format(
 				"curl --http1.1 -m 2 -ksN -o /dev/null %s" ..
 				"-w 'time_connect=%%{time_connect}\\nhttp_code=%%{http_code}' " ..
+				"%s" ..
 				"-H 'Connection: Upgrade' -H 'Upgrade: websocket' " ..
 				"-H 'Sec-WebSocket-Key: SGVsbG8sIHdvcmxkIQ==' " ..
 				"-H 'Sec-WebSocket-Version: 13' '%s'",
-				resolve_arg, address
+				resolve_arg,
+				(probe_host and probe_host ~= "") and ("-H " .. luci.util.shellquote("Host: " .. probe_host) .. " ") or "",
+				address
 			)
 			result = luci.sys.exec(cmd) or ""
 			success = (string.match(result, "http_code=(%d+)") == "101")
@@ -525,13 +584,19 @@ function act_ping()
 			--luci.sys.exec(string.format("echo 'Node %s (ws) failed deep test, using TCP fallback' >> /tmp/ping.log", domain))
 		end
 		e.socket = success
-		-- 解析延迟 (优先用 curl 数据，失败则回退到 tcping)
-		local ping_time = tonumber(string.match(result, "time_connect=(%d+.%d%d%d)"))
-		if ping_time and ping_time > 0 then
-			e.ping = math.floor(ping_time * 1000)
-		else
-			local tcping_cmd = string.format("tcping -q -c 1 -t 1 -p %d %s 2>/dev/null | grep -o 'time=[0-9]*' | cut -d= -f2", port, domain)
-			e.ping = tonumber(luci.sys.exec(tcping_cmd)) or 0
+		-- 延迟：优先 ping，再 curl，最后 tcping
+		if not e.ping then
+			local ping_time = tonumber(string.match(result, "time_connect=(%d+.%d%d%d)"))
+			local appconnect_time = tonumber(string.match(result, "time_appconnect=(%d+.%d%d%d)"))
+			if appconnect_time and appconnect_time > 0 then
+				e.ping = normalize_ping_ms(appconnect_time, 1000)
+			elseif ping_time and ping_time > 0 then
+				e.ping = normalize_ping_ms(ping_time, 1000)
+			else
+				local tcping_cmd = string.format("tcping -q -c 1 -t 1 -p %d %s 2>/dev/null | grep -oE 'time=[0-9.]+ ?ms?' | head -1 | sed -E 's/time=([0-9.]+).*/\\1/'", port, domain)
+				local tcping_res = tonumber(luci.sys.exec(tcping_cmd))
+				e.ping = normalize_ping_ms(tcping_res) or 0
+			end
 		end
 	else
 		-- 3. 非 WebSocket 节点的探测逻辑 (TCP / ICMP / UDP)
@@ -543,9 +608,18 @@ function act_ping()
 			socket:close()
 		end
 
-		-- 延迟：tcping -> ping -> nping(udp)
-		local tcping_cmd = string.format("tcping -q -c 1 -t 1 -p %d %s 2>/dev/null | grep -o 'time=[0-9]*' | cut -d= -f2", port, domain)
-		e.ping = tonumber(luci.sys.exec(tcping_cmd))
+		if prefers_handshake_latency and (tls == "1" or tls_host ~= "" or proto == "vless" or proto == "vmess") then
+			e.ping = detect_tls_handshake_ms(domain, port, "", probe_host, domain, false)
+		end
+
+		-- 延迟：优先真实握手，再 tcping -> ping -> nping(udp)
+		if not e.ping then
+			local tcping_cmd = string.format("tcping -q -c 1 -t 1 -p %d %s 2>/dev/null | grep -oE 'time=[0-9.]+ ?ms?' | head -1 | sed -E 's/time=([0-9.]+).*/\\1/'", port, domain)
+			local tcping_res = tonumber(luci.sys.exec(tcping_cmd))
+			if tcping_res and tcping_res >= 1 then
+				e.ping = normalize_ping_ms(tcping_res)
+			end
+		end
 		if not e.ping then
 			local icmp_cmd = string.format("ping -c 1 -W 1 %s 2>/dev/null | grep -o 'time=[0-9.]*' | cut -d= -f2", domain)
 			e.ping = tonumber(luci.sys.exec(icmp_cmd))
@@ -556,7 +630,23 @@ function act_ping()
 			local udp_res = luci.sys.exec(udp_cmd)
 			if udp_res and udp_res ~= "" then
 				local ping_num = tonumber(udp_res)
-				if ping_num then e.ping = math.floor(ping_num) end
+				if ping_num then e.ping = normalize_ping_ms(ping_num) end
+			end
+		end
+
+		if (not e.ping or e.ping == 0) and domain and port > 0 then
+			local schemes = { "https", "http" }
+			for _, scheme in ipairs(schemes) do
+				local connect_cmd = string.format(
+					"curl -m 2 -ksS -o /dev/null -w 'time_connect=%%{time_connect}' %s://%s:%d 2>/dev/null",
+					scheme, domain, port
+				)
+				local connect_res = luci.sys.exec(connect_cmd) or ""
+				local connect_time = tonumber(connect_res:match("time_connect=([0-9.]+)"))
+				if connect_time and connect_time > 0 then
+					e.ping = normalize_ping_ms(connect_time, 1000)
+					break
+				end
 			end
 		end
 	end

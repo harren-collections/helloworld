@@ -55,6 +55,8 @@ uci:foreach("shadowsocksr", "servers", function(s)
 		server = s.server,
 		transport = s.transport,
 		ws_path = s.ws_path,
+		ws_host = s.ws_host,
+		tls_host = s.tls_host,
 		tls = s.tls,
 		clash_url = s.clash_url
 	}
@@ -256,9 +258,13 @@ o.render = function(self, section, scope)
 	if stype == "clash" then
 		self.transport = ""
 		self.ws_path = ""
+		self.ws_host = ""
+		self.tls_host = ""
 		self.tls = ""
 	else
 		self.transport = cfg.transport or ""
+		self.ws_host = cfg.ws_host or ""
+		self.tls_host = cfg.tls_host or ""
 		if self.transport == 'ws' then
 			self.ws_path = cfg.ws_path or ""
 			self.tls = cfg.tls or ""
@@ -275,7 +281,12 @@ o.template = "shadowsocksr/ping"
 o.width = "10%"
 function o.cfgvalue(self, section)
 	self.detect_cache = detect_cache[section]
-	return get_server(section).server or "N/A"
+	local cfg = get_server(section)
+	self.type = cfg.type or ""
+	if cfg.type == "clash" then
+		return "N/A"
+	end
+	return cfg.server or "N/A"
 end
 
 local global_server = uci:get_first('shadowsocksr', 'global', 'global_server') 

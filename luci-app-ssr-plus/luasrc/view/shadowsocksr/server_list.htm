@@ -64,6 +64,8 @@ end
 			const ports = document.getElementsByClassName("socket-connected");
 			const transports = document.getElementsByClassName("transport");
 			const wsPaths = document.getElementsByClassName("wsPath");
+			const wsHosts = document.getElementsByClassName("wsHost");
+			const tlsHosts = document.getElementsByClassName("tlsHost");
 			const tlss = document.getElementsByClassName("tls");
 			const types = document.getElementsByClassName("type");
 			const protos = document.getElementsByClassName("proto");
@@ -145,6 +147,8 @@ end
 						const port = ports[index];
 						const transport = transports[index];
 						const wsPath = wsPaths[index];
+						const wsHost = wsHosts[index];
+						const tlsHost = tlsHosts[index];
 						const tls = tlss[index];
 						const type = types[index];
 						const proto = protos[index];
@@ -152,6 +156,12 @@ end
 							res();
 							return;
 						}
+					if (type && type.getAttribute("hint") === "clash") {
+						dom.innerHTML = '<font style="color:#999999">N/A</font>';
+						port.innerHTML = '<font style="color:#999999">N/A</font>';
+						res();
+						return;
+					}
 					port.innerHTML = '<font style=\"color:#0072c3\">connect</font>';
 						XHR.get('<%=luci.dispatcher.build_url("admin/services/shadowsocksr/ping")%>', {
 							index,
@@ -160,6 +170,8 @@ end
 							port: port.getAttribute("hint"),
 							transport: transport.getAttribute("hint"),
 							wsPath: wsPath.getAttribute("hint"),
+							host: wsHost ? wsHost.getAttribute("hint") : "",
+							tlsHost: tlsHost ? tlsHost.getAttribute("hint") : "",
 							tls: tls.getAttribute("hint"),
 							type: type.getAttribute("hint"),
 							proto: proto.getAttribute("hint")

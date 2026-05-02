@@ -2,9 +2,10 @@
 <%
 	local hint = self:cfgvalue(section)
 	local cache = self.detect_cache
-	local text = "--- ms"
-	local color = "#ff0000"
-	if cache and tonumber(cache.ping or 0) > 0 then
+	local is_clash = self.type == "clash"
+	local text = is_clash and "N/A" or "--- ms"
+	local color = is_clash and "#999999" or "#ff0000"
+	if not is_clash and cache and tonumber(cache.ping or 0) > 0 then
 		local ping = tonumber(cache.ping)
 		text = tostring(ping) .. " ms"
 		if ping < 300 then color = "#ff3300" end
