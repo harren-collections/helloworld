@@ -120,9 +120,20 @@ uci_get_by_cfgid() {
 	echo ${ret:=$3}
 }
 
-get_dns_ipv4_only() {
-	local ret="$(uci get $NAME.@global[0].mosdns_ipv6 2>/dev/null)"
+get_filter_aaaa() {
+	local ret="$(uci get $NAME.@global[0].filter_aaaa 2>/dev/null)"
+	[ -z "$ret" ] && ret="$(uci get $NAME.@global[0].mosdns_ipv6 2>/dev/null)"
 	echo "${ret:=1}"
+}
+
+start_dns2tcp() {
+	local dnsserver="$1"
+
+	if [ "$(get_filter_aaaa)" = "1" ]; then
+		ln_start_bin $(first_type dns2tcp) dns2tcp -L "127.0.0.1#$dns_port" -R "${dnsserver/:/#}" -A
+	else
+		ln_start_bin $(first_type dns2tcp) dns2tcp -L "127.0.0.1#$dns_port" -R "${dnsserver/:/#}"
+	fi
 }
 
 supports_builtin_dns() {
@@ -276,7 +287,7 @@ prepare_clash_runtime_config() {
 	local filled_groups=0
 	local stripped_script_rules=0
 	local clash_secret="$(get_clash_api_secret "$sid")"
-	local dns_ipv4_only="$(get_dns_ipv4_only)"
+	local dns_ipv4_only="$(get_filter_aaaa)"
 	local dns_mode="$(uci_get_by_type global pdnsd_enable 0)"
 
 	[ -s "$cache_file" ] || return 1
@@ -631,7 +642,7 @@ start_dns() {
 		fi
 		case "$ssrplus_dns" in
 		1)
-			ln_start_bin $(first_type dns2tcp) dns2tcp -L 127.0.0.1#$dns_port -R ${dnsserver/:/#}
+			start_dns2tcp "$dnsserver"
 			pdnsd_enable_flag=1
 			;;
 		2)
@@ -646,7 +657,7 @@ start_dns() {
 			pdnsd_enable_flag=3
 			;;
 		4)
-			local mosdns_ipv6="$(uci_get_by_type global mosdns_ipv6)"
+			local filter_aaaa="$(get_filter_aaaa)"
 			local mosdns_dnsserver="$(uci_get_by_type global tunnel_forward_mosdns)"
 			output=$(for i in $(echo $mosdns_dnsserver | sed "s/,/ /g"); do
 				dnsserver=${i%:*}
@@ -659,7 +670,7 @@ start_dns() {
 			done)
 
 			awk -v line=14 -v text="$output" 'NR == line+1 {print text} 1' /etc/ssrplus/mosdns-config.yaml | sed "s/DNS_PORT/$dns_port/g" | sed "s/\(concurrent:\).*/\1 $(echo "$mosdns_dnsserver" | sed 's/,/ /g' | wc -w)/g"> $TMP_PATH/mosdns-config.yaml
-			if [ "$mosdns_ipv6" == "0" ]; then
+			if [ "$filter_aaaa" == "0" ]; then
 				sed -i "s/DNS_MODE/main_sequence_with_IPv6/g" $TMP_PATH/mosdns-config.yaml
 			else
 				sed -i "s/DNS_MODE/main_sequence_disable_IPv6/g" $TMP_PATH/mosdns-config.yaml

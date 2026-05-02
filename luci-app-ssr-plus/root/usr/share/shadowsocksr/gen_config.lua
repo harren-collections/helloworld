@@ -33,7 +33,10 @@ local xray_fragment = ucursor:get_all("shadowsocksr", "@global_xray_fragment[0]"
 local xray_noise = ucursor:get_all("shadowsocksr", "@xray_noise_packets[0]") or {}
 local default_node_local_port = ucursor:get_first("shadowsocksr", "global", "default_node_local_port", "1234")
 local dns_mode = ucursor:get_first("shadowsocksr", "global", "pdnsd_enable", "0")
-local dns_ipv4_only = ucursor:get_first("shadowsocksr", "global", "mosdns_ipv6", "1")
+local dns_ipv4_only = ucursor:get_first("shadowsocksr", "global", "filter_aaaa")
+if not dns_ipv4_only or dns_ipv4_only == "" then
+	dns_ipv4_only = ucursor:get_first("shadowsocksr", "global", "mosdns_ipv6", "1")
+end
 local builtin_dns_server = ucursor:get_first("shadowsocksr", "global", "tunnel_forward", "8.8.4.4:53")
 local outbound_settings = nil
 local xray_version = nil

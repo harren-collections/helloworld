@@ -170,7 +170,8 @@ o:value("tcp://1.1.1.1:53,tcp://1.0.0.1:53", translate("Cloudflare DNS"))
 o:depends("pdnsd_enable", "4")
 o.description = translate("Custom DNS Server format as tcp://IP:PORT or tls://DOMAIN:PORT (tcp://8.8.8.8 or tls://dns.google:853)")
 
-o = s:option(Flag, "mosdns_ipv6", translate("Disable IPv6 for Overseas FQDN"))
+o = s:option(Flag, "filter_aaaa", translate("Disable IPv6 for Overseas FQDN"))
+o:depends("pdnsd_enable", "1")
 o:depends("pdnsd_enable", "4")
 o:depends("pdnsd_enable", "7")
 o.rmempty = false

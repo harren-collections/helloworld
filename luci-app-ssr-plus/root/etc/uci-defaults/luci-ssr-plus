@@ -57,6 +57,15 @@ if [ -s "/etc/config/shadowsocksr" ]; then
         uci -q set shadowsocksr.@global[0].component_mirror='direct'
     fi
 
+    if ! uci -q get shadowsocksr.@global[0].filter_aaaa > /dev/null; then
+        legacy_filter_aaaa="$(uci -q get shadowsocksr.@global[0].mosdns_ipv6)"
+        uci -q set shadowsocksr.@global[0].filter_aaaa="${legacy_filter_aaaa:-1}"
+    fi
+
+    if uci -q get shadowsocksr.@global[0].mosdns_ipv6 > /dev/null; then
+        uci -q delete shadowsocksr.@global[0].mosdns_ipv6
+    fi
+
     if ! uci -q get shadowsocksr.@http_proxy[0] > /dev/null; then
         uci -q add shadowsocksr http_proxy
         uci -q set shadowsocksr.@http_proxy[0].server='nil'
