@@ -464,19 +464,21 @@ check_run_environment() {
 	# 重置 USE_TABLES
 	USE_TABLES=""
 
-	if [ "$HAS_FW3" -eq 1 ] && [ "$HAS_IPSET" -eq 1 ]; then
-		echolog "提示：检测到 fw3 和 ipset，使用 iptables..."
-		if [ "$HAS_IPT" -eq 1 ] && [ "$DNSMASQ_IPSET" -eq 1 ]; then
-			USE_TABLES="iptables"
-		else
-			echolog "警告：fw3/ipset 已检测到，但 iptables 环境不完整。(has_ipt:$HAS_IPT/dnsmasq_ipset:$DNSMASQ_IPSET)"
-		fi
-	else
-		echolog "提示：未同时检测到 fw3 和 ipset，使用 nftables..."
-		if [ "$DNSMASQ_NFTSET" -eq 1 ] && [ "$HAS_NFT" -eq 1 ] && [ "$HAS_FW4" -eq 1 ]; then
+	if [ "$HAS_FW4" -eq 1 ]; then
+		echolog "提示：检测到 fw4，优先使用 nftables..."
+		if [ "$DNSMASQ_NFTSET" -eq 1 ] && [ "$HAS_NFT" -eq 1 ]; then
 			USE_TABLES="nftables"
 		else
-			echolog "警告：nftables (fw4) 应用环境不完整。(has_fw4:$HAS_FW4/has_nft:$HAS_NFT/dnsmasq_nftset:$DNSMASQ_NFTSET)"
+			echolog "警告：fw4 已检测到，但 nftables 环境不完整。(has_nft:$HAS_NFT/dnsmasq_nftset:$DNSMASQ_NFTSET)"
+		fi
+	fi
+
+	if [ -z "$USE_TABLES" ] && [ "$HAS_FW3" -eq 1 ]; then
+		echolog "提示：未启用 fw4，回退到 fw3/iptables..."
+		if [ "$HAS_IPSET" -eq 1 ] && [ "$HAS_IPT" -eq 1 ] && [ "$DNSMASQ_IPSET" -eq 1 ]; then
+			USE_TABLES="iptables"
+		else
+			echolog "警告：fw3 已检测到，但 iptables 环境不完整。(has_ipset:$HAS_IPSET/has_ipt:$HAS_IPT/dnsmasq_ipset:$DNSMASQ_IPSET)"
 		fi
 	fi
 

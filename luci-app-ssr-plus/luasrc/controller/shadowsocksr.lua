@@ -181,6 +181,10 @@ local function clash_delay_ok(sid, candidates, probe_url)
 	return false
 end
 
+local function use_fw4_backend()
+	return luci.sys.call("command -v fw4 >/dev/null") == 0
+end
+
 local function parse_clash_groups(raw)
 	local info = json.parse(raw or "")
 	local proxies = info and info.proxies or nil
@@ -584,7 +588,7 @@ function act_ping()
 	local prefers_handshake_latency = (type == "v2ray")
 
 	-- 临时放行防火墙逻辑
-	local use_nft = luci.sys.call("command -v nft >/dev/null") == 0
+	local use_nft = use_fw4_backend()
 	local iret = false
 	if domain then
 		if use_nft then
@@ -802,7 +806,7 @@ function check_port()
 	local s
 	local server_name = ""
 	local uci = require "luci.model.uci".cursor()
-	local use_nft = luci.sys.call("command -v nft >/dev/null") == 0
+	local use_nft = use_fw4_backend()
 
 	uci:foreach("shadowsocksr", "servers", function(s)
 		if s.type == "clash" then
