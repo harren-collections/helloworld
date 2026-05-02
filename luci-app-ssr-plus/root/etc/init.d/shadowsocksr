@@ -272,6 +272,9 @@ prepare_clash_runtime_config() {
 	local overlay_file="$workdir/overlay.yaml"
 	local runtime_file="$workdir/config.yaml"
 	local state_file="$(get_clash_state_file "$sid")"
+	local merge_stats=""
+	local filled_groups=0
+	local stripped_script_rules=0
 	local clash_secret="$(get_clash_api_secret "$sid")"
 	local dns_ipv4_only="$(get_dns_ipv4_only)"
 	local dns_mode="$(uci_get_by_type global pdnsd_enable 0)"
@@ -305,7 +308,17 @@ prepare_clash_runtime_config() {
 		echo "socks-port: $socks_port" >>"$overlay_file"
 	fi
 
-	/usr/bin/lua "$CLASH_YAML_HELPER" merge "$raw_file" "$overlay_file" "$runtime_file" >/dev/null 2>&1 || return 1
+	merge_stats="$(/usr/bin/lua "$CLASH_YAML_HELPER" merge "$raw_file" "$overlay_file" "$runtime_file" 2>/dev/null)" || return 1
+	filled_groups="$(printf '%s\n' "$merge_stats" | sed -n 's/.*filled_groups=\([0-9][0-9]*\).*/\1/p' | tail -n1)"
+	stripped_script_rules="$(printf '%s\n' "$merge_stats" | sed -n 's/.*stripped_script_rules=\([0-9][0-9]*\).*/\1/p' | tail -n1)"
+	[ -n "$filled_groups" ] || filled_groups=0
+	[ -n "$stripped_script_rules" ] || stripped_script_rules=0
+	if [ "$filled_groups" -gt 0 ] 2>/dev/null; then
+		echolog "Clash YAML 兼容修复：共为 $filled_groups 个空代理组回填 DIRECT。"
+	fi
+	if [ "$stripped_script_rules" -gt 0 ] 2>/dev/null; then
+		echolog "Clash YAML 兼容修复：共移除 $stripped_script_rules 条不兼容的 SCRIPT 规则。"
+	fi
 
 	# Persist Mihomo's store-selected cache across service restarts.
 	if [ -f "$workdir/cache.db" ] && [ ! -L "$workdir/cache.db" ]; then

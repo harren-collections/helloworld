@@ -151,6 +151,62 @@ local function strip_runtime_conflicts(doc)
 	end
 end
 
+local function group_requires_candidates(group)
+	local gtype = tostring(group and group.type or ""):lower()
+	return gtype == "select"
+		or gtype == "fallback"
+		or gtype == "load-balance"
+		or gtype == "url-test"
+		or gtype == "relay"
+end
+
+local function has_nonempty_sequence(value)
+	return type(value) == "table" and next(value) ~= nil
+end
+
+local function fill_empty_proxy_groups(doc)
+	local changed = 0
+	for _, group in ipairs(doc["proxy-groups"] or {}) do
+		if type(group) == "table"
+			and group_requires_candidates(group)
+			and not has_nonempty_sequence(group.proxies)
+			and not has_nonempty_sequence(group.use)
+		then
+			group.proxies = { "DIRECT" }
+			changed = changed + 1
+		end
+	end
+	return changed
+end
+
+local function strip_incompatible_script_rules(doc)
+	local kept = {}
+	local removed = 0
+	local has_script_rule = false
+
+	for _, rule in ipairs(doc.rules or {}) do
+		local text = tostring(rule or "")
+		if text:match("^SCRIPT,") then
+			removed = removed + 1
+		else
+			kept[#kept + 1] = rule
+			if text:match("^SCRIPT,") then
+				has_script_rule = true
+			end
+		end
+	end
+
+	if removed > 0 then
+		doc.rules = kept
+	end
+
+	if not has_script_rule then
+		doc.script = nil
+	end
+
+	return removed
+end
+
 local function prepare(input_path, output_path)
 	local doc, err = load_yaml(input_path)
 	if not doc then
@@ -163,6 +219,8 @@ local function prepare(input_path, output_path)
 	end
 
 	strip_runtime_conflicts(doc)
+	local filled_groups = fill_empty_proxy_groups(doc)
+	local stripped_rules = strip_incompatible_script_rules(doc)
 	local ok, rendered = pcall(lyaml.dump, { doc })
 	if not ok or not rendered then
 		io.stderr:write("dump_failed\n")
@@ -170,6 +228,7 @@ local function prepare(input_path, output_path)
 	end
 
 	write_file(output_path, rendered)
+	io.stdout:write(string.format("filled_groups=%d stripped_script_rules=%d\n", filled_groups, stripped_rules))
 	return true
 end
 
@@ -187,6 +246,8 @@ local function merge(raw_path, overlay_path, output_path)
 	end
 
 	strip_runtime_conflicts(raw_doc)
+	local filled_groups = fill_empty_proxy_groups(raw_doc)
+	local stripped_rules = strip_incompatible_script_rules(raw_doc)
 	local merged = deep_merge(raw_doc, overlay_doc)
 	local ok, rendered = pcall(lyaml.dump, { merged })
 	if not ok or not rendered then
@@ -195,6 +256,7 @@ local function merge(raw_path, overlay_path, output_path)
 	end
 
 	write_file(output_path, rendered)
+	io.stdout:write(string.format("filled_groups=%d stripped_script_rules=%d\n", filled_groups, stripped_rules))
 	return true
 end
 
