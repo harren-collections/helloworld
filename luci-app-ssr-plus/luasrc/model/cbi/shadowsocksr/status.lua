@@ -22,6 +22,7 @@ local global_socks_enabled = uci:get_first("shadowsocksr", "socks5_proxy", "enab
 local global_socks_server = uci:get_first("shadowsocksr", "socks5_proxy", "server", "nil")
 local global_http_enabled = uci:get_first("shadowsocksr", "http_proxy", "enabled", "0") == "1"
 local has_3proxy = nixio.fs.access("/usr/bin/3proxy") or nixio.fs.access("/usr/libexec/3proxy") or nixio.fs.access("/bin/3proxy")
+local pdnsd_mode = uci:get_first("shadowsocksr", 'global', 'pdnsd_enable', '0')
 -- html constants
 font_blue = [[<b style=color:green>]]
 style_blue = [[<b style=color:red>]]
@@ -145,7 +146,11 @@ if  Process_list:find("ssrplus/bin/dns2tcp") or
 	pdnsd_run = 1
 end
 
-if global_type == "clash" and Process_list:find("ssr%-retcp") then
+if pdnsd_mode == "7" and global_type == "clash" and Process_list:find("ssr%-retcp") then
+	pdnsd_run = 1
+end
+
+if pdnsd_mode == "7" and global_type == "v2ray" and Process_list:find("ssr%-retcp%.json") then
 	pdnsd_run = 1
 end
 

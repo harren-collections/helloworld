@@ -1750,6 +1750,14 @@ msgstr ""
 msgid "Resolve Dns Mode"
 msgstr ""
 
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:146
+msgid "Prefer module built-in DNS"
+msgstr ""
+
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:180
+msgid "Disable IPv6 for Overseas FQDN"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/status.lua:182
 msgid "Restart Service"
 msgstr ""

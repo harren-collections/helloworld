@@ -750,6 +750,10 @@ msgstr "禁止 MosDNS 返回 IPv6 记录 (分流模式)"
 msgid "Disable IPv6 in MOSDNS query mode"
 msgstr "禁止 MOSDNS 返回 IPv6 记录"
 
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:180
+msgid "Disable IPv6 for Overseas FQDN"
+msgstr "禁止海外域名返回 IPv6 记录"
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:197
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:226
 msgid "Disable IPv6 query mode"
@@ -1904,6 +1908,10 @@ msgstr "恢复出厂设置"
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:127
 msgid "Resolve Dns Mode"
 msgstr "DNS 解析方式"
+
+#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:146
+msgid "Prefer module built-in DNS"
+msgstr "优先使用模块内置 DNS"
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/status.lua:182
 msgid "Restart Service"

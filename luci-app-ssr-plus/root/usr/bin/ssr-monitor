@@ -233,6 +233,14 @@ while [ "1" == "1" ]; do #死循环
 			dnsserver="$chinadns_ng_dns"
 			ln_start_bin $(first_type chinadns-ng) chinadns-ng -b 127.0.0.1 -l $tmp_dns_port -l $dns_port -p 3 -d gfw $dnsserver -N --filter-qtype 64,65 -f -r --cache 4096 --cache-stale 86400 --cache-refresh 20
 		fi
+	#built-in dns
+	elif [ "$pdnsd_process" -eq 7 ]; then
+		if ! is_builtin_dns_active; then
+			logger -t "$NAME" "builtin dns error.restart!"
+			echolog "builtin dns error.restart!"
+			/etc/init.d/shadowsocksr restart
+			exit 0
+		fi
 	fi
 	#chinadns-ng(china)
 	if [ "$(uci -q get "dhcp.@dnsmasq[0]._unused_ssrp_changed")" = "1" ]; then

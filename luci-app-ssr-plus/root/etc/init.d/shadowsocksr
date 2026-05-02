@@ -51,7 +51,6 @@ ARG_UDP=
 ARG_UDP_RULES=
 
 dns_port="5335"            #dns port
-clash_dns_port="5300"      #clash fallback dns port
 china_dns_port="5333"      #china_dns_port
 tmp_dns_port="300"         #dns2socks temporary port
 tmp_udp_port="301"         #udp temporary port
@@ -119,6 +118,55 @@ uci_get_by_cfgid() {
 	[ -n "$2" ] && key="$key.$2"
 	local ret=$(uci show "$key" 2>/dev/null | awk -F '[.=]' 'NR==1 {print $2}')
 	echo ${ret:=$3}
+}
+
+get_dns_ipv4_only() {
+	local ret="$(uci get $NAME.@global[0].mosdns_ipv6 2>/dev/null)"
+	echo "${ret:=1}"
+}
+
+supports_builtin_dns() {
+	case "$1" in
+	clash|v2ray)
+		return 0
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+get_builtin_dns_fallback_mode() {
+	if is_finded "dns2tcp"; then
+		echo "1"
+	elif is_finded "dns2socks"; then
+		echo "2"
+	elif is_finded "dns2socks-rust"; then
+		echo "3"
+	elif is_finded "dnsproxy"; then
+		echo "5"
+	elif is_finded "chinadns-ng"; then
+		echo "6"
+	elif is_finded "mosdns"; then
+		echo "4"
+	else
+		echo "0"
+	fi
+}
+
+is_builtin_dns_active() {
+	local global_server_type="$(uci_get_by_name "$GLOBAL_SERVER" type)"
+	case "$global_server_type" in
+	clash)
+		ps_list | grep -v "grep" | grep -q "ssr-retcp"
+		;;
+	v2ray)
+		ps_list | grep -v "grep" | grep -q "$TMP_PATH/.*ssr-retcp\\.json"
+		;;
+	*)
+		return 1
+		;;
+	esac
 }
 
 get_default_node_local_port() {
@@ -220,6 +268,8 @@ prepare_clash_runtime_config() {
 	local overlay_file="$workdir/overlay.yaml"
 	local runtime_file="$workdir/config.yaml"
 	local clash_secret="$(get_clash_api_secret "$sid")"
+	local dns_ipv4_only="$(get_dns_ipv4_only)"
+	local dns_mode="$(uci_get_by_type global pdnsd_enable 0)"
 
 	[ -s "$cache_file" ] || return 1
 
@@ -240,9 +290,10 @@ prepare_clash_runtime_config() {
 		tun:
 		  enable: false
 		dns:
-		  enable: true
+		  enable: $( [ "$dns_mode" = "7" ] && echo "true" || echo "false" )
 		  enhanced-mode: redir-host
-		  listen: 127.0.0.1:$clash_dns_port
+		  listen: 127.0.0.1:$dns_port
+		  ipv6: $( [ "$dns_ipv4_only" = "1" ] && echo "false" || echo "true" )
 	EOF
 
 	if [ -n "$socks_port" ] && [ "$socks_port" != "0" ]; then
@@ -516,6 +567,7 @@ start_dns() {
 	local ssrplus_dns="$(uci_get_by_type global pdnsd_enable 0)"
 	local global_server_type="$(uci_get_by_name "$GLOBAL_SERVER" type)"
 	local dnsproxy_dnsserver="$(uci_get_by_type global parse_method)"
+	local builtin_dns_enabled=0
 	if [ -n "$dnsproxy_dnsserver" ] && [ "$dnsproxy_dnsserver" != "parse_file" ]; then
 		dnsserver="$(uci_get_by_type global dnsproxy_tunnel_forward 8.8.4.4:53)"
 	elif [ -n "$ssrplus_dns" ] && [ "$ssrplus_dns" = "6" ]; then
@@ -525,7 +577,22 @@ start_dns() {
 	fi
 	local run_mode="$(normalize_run_mode)"
 
-	if [ "$ssrplus_dns" != "0" ]; then
+	if [ "$ssrplus_dns" = "7" ]; then
+		if supports_builtin_dns "$global_server_type"; then
+			builtin_dns_enabled=1
+		else
+			ssrplus_dns="$(get_builtin_dns_fallback_mode)"
+			[ "$ssrplus_dns" = "0" ] && {
+				echolog "提示：当前主节点不支持模块内置 DNS，且无可用 DNS helper，继续使用本地 5335 模式。"
+			} || {
+				echolog "提示：当前主节点不支持模块内置 DNS，自动回退到可用 DNS helper 模式($ssrplus_dns)。"
+			}
+		fi
+	fi
+
+	if [ "$builtin_dns_enabled" = "1" ]; then
+		pdnsd_enable_flag=7
+	elif [ "$ssrplus_dns" != "0" ]; then
 		if [ "$HAS_IPSET" -eq 1 ]; then
 			if [ -n "$dnsserver" ]; then
 				add_dns_into_ipset $run_mode $dnsserver

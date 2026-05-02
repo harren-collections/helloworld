@@ -136,6 +136,7 @@ end
 if is_finded("chinadns-ng") then
 	o:value("6", translate("Use ChinaDNS-NG query and cache"))
 end
+o:value("7", translate("Prefer module built-in DNS"))
 o:value("0", translate("Use Local DNS Service listen port 5335"))
 o.default = 1
 
@@ -154,6 +155,7 @@ o:value("1.1.1.1:53", translate("Cloudflare DNS (1.1.1.1)"))
 o:depends("pdnsd_enable", "1")
 o:depends("pdnsd_enable", "2")
 o:depends("pdnsd_enable", "3")
+o:depends("pdnsd_enable", "7")
 o.description = translate("Custom DNS Server format as IP:PORT (default: 8.8.4.4:53)")
 o.datatype = "ip4addrport"
 o.default = "8.8.4.4:53"
@@ -168,8 +170,9 @@ o:value("tcp://1.1.1.1:53,tcp://1.0.0.1:53", translate("Cloudflare DNS"))
 o:depends("pdnsd_enable", "4")
 o.description = translate("Custom DNS Server format as tcp://IP:PORT or tls://DOMAIN:PORT (tcp://8.8.8.8 or tls://dns.google:853)")
 
-o = s:option(Flag, "mosdns_ipv6", translate("Disable IPv6 in MOSDNS query mode"))
+o = s:option(Flag, "mosdns_ipv6", translate("Disable IPv6 for Overseas FQDN"))
 o:depends("pdnsd_enable", "4")
+o:depends("pdnsd_enable", "7")
 o.rmempty = false
 o.default = "1"
 

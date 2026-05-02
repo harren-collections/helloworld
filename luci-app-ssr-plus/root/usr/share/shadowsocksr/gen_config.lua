@@ -32,9 +32,13 @@ local socks_server = ucursor:get_all("shadowsocksr", "@socks5_proxy[0]") or {}
 local xray_fragment = ucursor:get_all("shadowsocksr", "@global_xray_fragment[0]") or {}
 local xray_noise = ucursor:get_all("shadowsocksr", "@xray_noise_packets[0]") or {}
 local default_node_local_port = ucursor:get_first("shadowsocksr", "global", "default_node_local_port", "1234")
+local dns_mode = ucursor:get_first("shadowsocksr", "global", "pdnsd_enable", "0")
+local dns_ipv4_only = ucursor:get_first("shadowsocksr", "global", "mosdns_ipv6", "1")
+local builtin_dns_server = ucursor:get_first("shadowsocksr", "global", "tunnel_forward", "8.8.4.4:53")
 local outbound_settings = nil
 local xray_version = nil
 local xray_version_val = 0
+local xray_builtin_dns = nil
 
 local node_id = server_section
 local remarks = server.alias or ""
@@ -284,6 +288,35 @@ local Xray = {
 	-- 初始化 outbounds 表
 	outbounds = {},
 }
+
+if server.type == "v2ray" and dns_mode == "7" then
+	local dns_host = builtin_dns_server:match("^([^:]+)") or "8.8.4.4"
+	local dns_port = tonumber(builtin_dns_server:match(":(%d+)$")) or 53
+
+	Xray.dns = {
+		queryStrategy = (dns_ipv4_only == "1") and "UseIPv4" or "UseIP",
+		servers = {
+			string.format("tcp://%s:%d", dns_host, dns_port)
+		}
+	}
+
+	table.insert(Xray.inbounds, {
+		listen = "127.0.0.1",
+		port = 5335,
+		protocol = "dokodemo-door",
+		settings = {
+			address = dns_host,
+			port = dns_port,
+			network = "tcp,udp"
+		},
+		tag = "builtin-dns-in"
+	})
+
+	xray_builtin_dns = {
+		address = dns_host,
+		port = dns_port
+	}
+end
 	-- 传入连接
 	-- 添加 dokodemo-door 配置，如果 local_port 不为 0
 if local_port ~= "0" then
@@ -656,6 +689,25 @@ Xray.outbounds = {
 		} or nil
 	}
 }
+
+if xray_builtin_dns then
+	table.insert(Xray.outbounds, {
+		protocol = "dns",
+		tag = "builtin-dns-out",
+		settings = {
+			network = "tcp",
+			address = xray_builtin_dns.address,
+			port = xray_builtin_dns.port
+		}
+	})
+	Xray.routing = Xray.routing or {}
+	Xray.routing.rules = Xray.routing.rules or {}
+	table.insert(Xray.routing.rules, {
+		type = "field",
+		inboundTag = { "builtin-dns-in" },
+		outboundTag = "builtin-dns-out"
+	})
+end
 
 -- 添加带有 fragment 设置的 dialerproxy 配置
 if xray_fragment.fragment ~= "0" or (xray_fragment.noise ~= "0" and xray_noise.enabled ~= "0") then
