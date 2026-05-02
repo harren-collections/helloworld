@@ -51,6 +51,7 @@ ARG_UDP=
 ARG_UDP_RULES=
 
 dns_port="5335"            #dns port
+clash_dns_port="5300"      #clash fallback dns port
 china_dns_port="5333"      #china_dns_port
 tmp_dns_port="300"         #dns2socks temporary port
 tmp_udp_port="301"         #udp temporary port
@@ -241,7 +242,7 @@ prepare_clash_runtime_config() {
 		dns:
 		  enable: true
 		  enhanced-mode: redir-host
-		  listen: 127.0.0.1:$dns_port
+		  listen: 127.0.0.1:$clash_dns_port
 	EOF
 
 	if [ -n "$socks_port" ] && [ "$socks_port" != "0" ]; then
@@ -523,20 +524,6 @@ start_dns() {
 		dnsserver="$(uci_get_by_type global tunnel_forward 8.8.4.4:53)"
 	fi
 	local run_mode="$(normalize_run_mode)"
-
-	if [ "$global_server_type" = "clash" ]; then
-		# Clash/Mihomo already provides its own DNS service. Tear down any legacy
-		# dns2tcp/dns2socks/dnsproxy/chinadns helpers from previous runs.
-		# In Clash mode, keep dnsmasq's default upstream resolvers for regular
-		# domains and let only gfwlist/blacklist domains be forwarded to
-		# Mihomo DNS on 127.0.0.1:$dns_port through the generated dnsmasq rules.
-		ps_list | grep -v "grep" | grep -E \
-			"${TMP_BIN_PATH}/dns2tcp|${TMP_BIN_PATH}/dns2socks|${TMP_BIN_PATH}/dns2socks-rust|${TMP_BIN_PATH}/dnsproxy|${TMP_BIN_PATH}/chinadns-ng|${TMP_BIN_PATH}/mosdns|ssrplus-dns" \
-			| awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
-		rm -f "$TMP_DNSMASQ_PATH/clash_dns.conf"
-		echolog "Clash 总节点启用 Mihomo 内置 DNS：仅 gfwlist 域名转发到 127.0.0.1#$dns_port，默认上游保持系统 DNS。"
-		ssrplus_dns="0"
-	fi
 
 	if [ "$ssrplus_dns" != "0" ]; then
 		if [ "$HAS_IPSET" -eq 1 ]; then
