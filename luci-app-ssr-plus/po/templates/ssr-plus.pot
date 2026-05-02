@@ -149,6 +149,48 @@ msgstr ""
 msgid "Download Source"
 msgstr ""
 
+msgid "Database"
+msgstr ""
+
+msgid "Geo Resource"
+msgstr ""
+
+msgid "Country MMDB"
+msgstr ""
+
+msgid "GeoSite Database"
+msgstr ""
+
+msgid "V2Ray GEO Databases"
+msgstr ""
+
+msgid "Geo Database Update"
+msgstr ""
+
+msgid "Current Version"
+msgstr ""
+
+msgid "Additional Version"
+msgstr ""
+
+msgid "CHECK AND UPDATE"
+msgstr ""
+
+msgid "Failed to query geo database information."
+msgstr ""
+
+msgid "Update the Country.mmdb database used by Mihomo/Clash runtime when available."
+msgstr ""
+
+msgid "Update the GeoSite.dat database used by Mihomo/Clash runtime when available."
+msgstr ""
+
+msgid "Update geoip.dat and geosite.dat used by Xray/V2Ray runtime when available."
+msgstr ""
+
+msgid "Unsupported component"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/control.lua:39
 msgid "Allow all except listed"
 msgstr ""
@@ -2234,6 +2276,12 @@ msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:322
 msgid "URL Test Address"
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Updating..."
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:95

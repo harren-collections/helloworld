@@ -6,11 +6,36 @@ XRAY_RELEASE_PAGE="https://github.com/XTLS/Xray-core/releases/latest"
 MIHOMO_RELEASE_PAGE="https://github.com/MetaCubeX/mihomo/releases/latest"
 XRAY_BINARY="/usr/bin/xray"
 MIHOMO_BINARY="/usr/bin/mihomo"
+COUNTRY_MMDB_URL="https://testingcf.jsdelivr.net/gh/alecthw/mmdb_china_ip_list@release/lite/Country.mmdb"
+GEOSITE_URL="https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+GEOIP_DAT_URL="https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat"
+COUNTRY_MMDB_FILE="/usr/share/shadowsocksr/Country.mmdb"
+GEOSITE_FILE="/etc/openclash/GeoSite.dat"
+GEOIP_DAT_FILE="/usr/share/v2ray/geoip.dat"
+GEOSITE_DAT_FILE="/usr/share/v2ray/geosite.dat"
 
 log_kv() {
 	key="$1"
 	shift
 	printf '%s=%s\n' "$key" "$*"
+}
+
+file_mtime() {
+	local path="$1"
+	[ -f "$path" ] || {
+		printf '%s' 'File Not Exist'
+		return 0
+	}
+	date -r "$path" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || printf '%s' 'Unknown'
+}
+
+file_size() {
+	local path="$1"
+	[ -f "$path" ] || {
+		printf '%s' '0'
+		return 0
+	}
+	wc -c < "$path" 2>/dev/null | tr -d '[:space:]'
 }
 
 trim_version() {
@@ -277,6 +302,207 @@ download_file() {
 
 	wget_cmd="$(select_wget_cmd)" || return 1
 	"$wget_cmd" --no-check-certificate --timeout=20 --tries=3 -O "$output" "$url" >/dev/null 2>&1
+}
+
+geo_validate_download() {
+	local new_file="$1"
+	local current_file="$2"
+	local new_size current_size
+
+	new_size="$(file_size "$new_file")"
+	[ "${new_size:-0}" -gt 0 ] 2>/dev/null || return 1
+
+	if [ -f "$current_file" ]; then
+		current_size="$(file_size "$current_file")"
+		[ "${new_size:-0}" -ge "${current_size:-0}" ] 2>/dev/null || return 1
+	fi
+
+	return 0
+}
+
+geo_safe_replace() {
+	local new_file="$1"
+	local current_file="$2"
+	local backup_file="$3"
+
+	mkdir -p "$(dirname "$current_file")" || return 1
+	[ -f "$current_file" ] && cp -fp "$current_file" "$backup_file" 2>/dev/null || true
+
+	if ! cp -f "$new_file" "$current_file"; then
+		[ -f "$backup_file" ] && cp -f "$backup_file" "$current_file" 2>/dev/null || true
+		return 1
+	fi
+
+	return 0
+}
+
+geo_local_info() {
+	local geo="$1"
+	local file1=""
+	local file2=""
+
+	case "$geo" in
+		country_mmdb)
+			file1="$COUNTRY_MMDB_FILE"
+			;;
+		geosite)
+			file1="$GEOSITE_FILE"
+			;;
+		v2ray_geo)
+			file1="$GEOIP_DAT_FILE"
+			file2="$GEOSITE_DAT_FILE"
+			;;
+		*)
+			log_kv error 'unsupported_component'
+			return 1
+			;;
+	esac
+
+	log_kv component "$geo"
+	log_kv installed "$([ -f "$file1" ] && echo 1 || echo 0)"
+	log_kv current_version "$(file_mtime "$file1")"
+	log_kv current_version_extra "$([ -n "$file2" ] && file_mtime "$file2" || echo '')"
+	log_kv latest_version ''
+	log_kv can_upgrade 0
+	log_kv error ''
+}
+
+geo_upgrade() {
+	local geo="$1"
+	local tmp_dir file_a url_a file_b url_b msg
+
+	tmp_dir="$(mktemp -d /tmp/ssrplus-geo.XXXXXX)"
+	[ -n "$tmp_dir" ] && [ -d "$tmp_dir" ] || {
+		log_kv component "$geo"
+		log_kv success 0
+		log_kv message 'Failed to create temp directory'
+		return 0
+	}
+	trap "rm -rf '$tmp_dir'" EXIT INT TERM
+
+	case "$geo" in
+		country_mmdb)
+			file_a="$COUNTRY_MMDB_FILE"
+			url_a="$(mirror_wrap_url "$COUNTRY_MMDB_URL")"
+			download_file "$url_a" "$tmp_dir/file_a" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Download failed'
+				return 0
+			}
+			geo_validate_download "$tmp_dir/file_a" "$file_a" || {
+				log_kv component "$geo"
+				log_kv success 1
+				log_kv current_version "$(file_mtime "$file_a")"
+				log_kv current_version_extra ''
+				log_kv latest_version "$(file_mtime "$file_a")"
+				log_kv can_upgrade 0
+				log_kv message 'Already up to date'
+				return 0
+			}
+			geo_safe_replace "$tmp_dir/file_a" "$file_a" "$tmp_dir/file_a.bak" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Install failed'
+				return 0
+			}
+			msg='Upgrade completed'
+			;;
+		geosite)
+			file_a="$GEOSITE_FILE"
+			url_a="$(mirror_wrap_url "$GEOSITE_URL")"
+			download_file "$url_a" "$tmp_dir/file_a" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Download failed'
+				return 0
+			}
+			geo_validate_download "$tmp_dir/file_a" "$file_a" || {
+				log_kv component "$geo"
+				log_kv success 1
+				log_kv current_version "$(file_mtime "$file_a")"
+				log_kv current_version_extra ''
+				log_kv latest_version "$(file_mtime "$file_a")"
+				log_kv can_upgrade 0
+				log_kv message 'Already up to date'
+				return 0
+			}
+			geo_safe_replace "$tmp_dir/file_a" "$file_a" "$tmp_dir/file_a.bak" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Install failed'
+				return 0
+			}
+			msg='Upgrade completed'
+			;;
+		v2ray_geo)
+			file_a="$GEOIP_DAT_FILE"
+			url_a="$(mirror_wrap_url "$GEOIP_DAT_URL")"
+			file_b="$GEOSITE_DAT_FILE"
+			url_b="$(mirror_wrap_url "$GEOSITE_URL")"
+			download_file "$url_a" "$tmp_dir/file_a" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Download failed'
+				return 0
+			}
+			download_file "$url_b" "$tmp_dir/file_b" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Download failed'
+				return 0
+			}
+			geo_validate_download "$tmp_dir/file_a" "$file_a" || {
+				log_kv component "$geo"
+				log_kv success 1
+				log_kv current_version "$(file_mtime "$file_a")"
+				log_kv current_version_extra "$(file_mtime "$file_b")"
+				log_kv latest_version "$(file_mtime "$file_a")"
+				log_kv can_upgrade 0
+				log_kv message 'Already up to date'
+				return 0
+			}
+			geo_validate_download "$tmp_dir/file_b" "$file_b" || {
+				log_kv component "$geo"
+				log_kv success 1
+				log_kv current_version "$(file_mtime "$file_a")"
+				log_kv current_version_extra "$(file_mtime "$file_b")"
+				log_kv latest_version "$(file_mtime "$file_a")"
+				log_kv can_upgrade 0
+				log_kv message 'Already up to date'
+				return 0
+			}
+			geo_safe_replace "$tmp_dir/file_a" "$file_a" "$tmp_dir/file_a.bak" || {
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Install failed'
+				return 0
+			}
+			geo_safe_replace "$tmp_dir/file_b" "$file_b" "$tmp_dir/file_b.bak" || {
+				[ -f "$tmp_dir/file_a.bak" ] && cp -f "$tmp_dir/file_a.bak" "$file_a" 2>/dev/null || true
+				log_kv component "$geo"
+				log_kv success 0
+				log_kv message 'Install failed'
+				return 0
+			}
+			msg='Upgrade completed'
+			;;
+		*)
+			log_kv component "$geo"
+			log_kv success 0
+			log_kv message 'Unsupported component'
+			return 0
+			;;
+	esac
+
+	log_kv component "$geo"
+	log_kv success 1
+	log_kv current_version "$(file_mtime "$file_a")"
+	log_kv current_version_extra "$([ -n "${file_b:-}" ] && file_mtime "$file_b" || echo '')"
+	log_kv latest_version "$(file_mtime "$file_a")"
+	log_kv can_upgrade 0
+	log_kv message "$msg"
+	return 0
 }
 
 get_xray_latest_tag() {
@@ -750,9 +976,36 @@ case "${1:-}" in
 	mihomo_upgrade)
 		mihomo_upgrade
 		;;
+	country_mmdb_info)
+		geo_local_info country_mmdb
+		;;
+	country_mmdb_local_info)
+		geo_local_info country_mmdb
+		;;
+	country_mmdb_upgrade)
+		geo_upgrade country_mmdb
+		;;
+	geosite_info)
+		geo_local_info geosite
+		;;
+	geosite_local_info)
+		geo_local_info geosite
+		;;
+	geosite_upgrade)
+		geo_upgrade geosite
+		;;
+	v2ray_geo_info)
+		geo_local_info v2ray_geo
+		;;
+	v2ray_geo_local_info)
+		geo_local_info v2ray_geo
+		;;
+	v2ray_geo_upgrade)
+		geo_upgrade v2ray_geo
+		;;
 	*)
 		log_kv success 0
-		log_kv message 'Usage: update_components.sh xray_info|xray_local_info|xray_upgrade|mihomo_info|mihomo_local_info|mihomo_upgrade'
+		log_kv message 'Usage: update_components.sh xray_info|xray_local_info|xray_upgrade|mihomo_info|mihomo_local_info|mihomo_upgrade|country_mmdb_info|country_mmdb_local_info|country_mmdb_upgrade|geosite_info|geosite_local_info|geosite_upgrade|v2ray_geo_info|v2ray_geo_local_info|v2ray_geo_upgrade'
 		return 1 2>/dev/null || exit 1
 		;;
 esac

@@ -140,6 +140,48 @@ msgstr "下载失败"
 msgid "Download Source"
 msgstr "下载源"
 
+msgid "Database"
+msgstr "数据库"
+
+msgid "Geo Resource"
+msgstr "Geo 资源"
+
+msgid "Country MMDB"
+msgstr "Country MMDB"
+
+msgid "GeoSite Database"
+msgstr "GeoSite 数据库"
+
+msgid "V2Ray GEO Databases"
+msgstr "V2Ray GEO 数据库"
+
+msgid "Geo Database Update"
+msgstr "Geo 数据库更新"
+
+msgid "Current Version"
+msgstr "当前版本"
+
+msgid "Additional Version"
+msgstr "附加版本"
+
+msgid "CHECK AND UPDATE"
+msgstr "检查并更新"
+
+msgid "Failed to query geo database information."
+msgstr "获取 Geo 数据库信息失败。"
+
+msgid "Update the Country.mmdb database used by Mihomo/Clash runtime when available."
+msgstr "更新 Mihomo/Clash 运行时可用的 Country.mmdb 数据库。"
+
+msgid "Update the GeoSite.dat database used by Mihomo/Clash runtime when available."
+msgstr "更新 Mihomo/Clash 运行时可用的 GeoSite.dat 数据库。"
+
+msgid "Update geoip.dat and geosite.dat used by Xray/V2Ray runtime when available."
+msgstr "更新 Xray/V2Ray 运行时可用的 geoip.dat 和 geosite.dat 数据库。"
+
+msgid "Unsupported component"
+msgstr "不支持的组件"
+
 msgid "Extract failed"
 msgstr "解压失败"
 
@@ -257,6 +299,12 @@ msgstr "升级"
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/component.htm:55
 msgid "Upgrading..."
 msgstr "升级中..."
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Updating..."
+msgstr "更新中..."
 
 msgid "Upgrade completed"
 msgstr "升级完成"

@@ -16,6 +16,11 @@ local SUPPORTED_COMPONENTS = {
 	xray = true,
 	mihomo = true
 }
+local SUPPORTED_GEO_COMPONENTS = {
+	country_mmdb = true,
+	geosite = true,
+	v2ray_geo = true
+}
 
 local function normalize_ping_ms(value, scale)
 	local num = tonumber(value)
@@ -258,6 +263,21 @@ local function read_component_state(component, action)
 	return parse_kv_output(luci.sys.exec(cmd))
 end
 
+local function read_geo_state(component, action)
+	if not SUPPORTED_GEO_COMPONENTS[component] then
+		return nil, 400, "unsupported_component"
+	end
+
+	local mirror = luci.http.formvalue("mirror") or ""
+	local cmd = string.format(
+		"COMPONENT_MIRROR=%s /bin/sh %s %s 2>/dev/null",
+		luci.util.shellquote(mirror),
+		luci.util.shellquote(COMPONENT_HELPER),
+		luci.util.shellquote(component .. "_" .. action)
+	)
+	return parse_kv_output(luci.sys.exec(cmd))
+end
+
 local function write_component_json(data)
 	luci.http.prepare_content("application/json")
 	luci.http.write_json({
@@ -268,6 +288,21 @@ local function write_component_json(data)
 		previous_version = data.previous_version or "",
 		arch = data.arch or "",
 		asset = data.asset or "",
+		can_upgrade = data.can_upgrade == "1",
+		success = data.success == "1",
+		error = data.error or "",
+		message = data.message or ""
+	})
+end
+
+local function write_geo_json(data)
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		component = data.component or "country_mmdb",
+		installed = data.installed == "1",
+		current_version = data.current_version or "",
+		current_version_extra = data.current_version_extra or "",
+		latest_version = data.latest_version or "",
 		can_upgrade = data.can_upgrade == "1",
 		success = data.success == "1",
 		error = data.error or "",
@@ -297,6 +332,9 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "component_set_mirror"}, call("component_set_mirror")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_status"}, call("component_status")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "component_upgrade"}, call("component_upgrade")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "geo_local_status"}, call("geo_local_status")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "geo_status"}, call("geo_status")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "geo_upgrade"}, call("geo_upgrade")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "checkport"}, call("check_port"))
 	entry({"admin", "services", "shadowsocksr", "log"}, form("shadowsocksr/log"), _("Log"), 80).leaf = true
 	entry({"admin", "services", "shadowsocksr", "get_log"}, call("get_log")).leaf = true
@@ -409,6 +447,39 @@ function component_upgrade()
 	end
 
 	write_component_json(data)
+end
+
+function geo_status()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_geo_state(component, "info")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_geo_json({component = component, error = err or "bad_request"})
+		return
+	end
+	write_geo_json(data)
+end
+
+function geo_local_status()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_geo_state(component, "local_info")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_geo_json({component = component, error = err or "bad_request"})
+		return
+	end
+	write_geo_json(data)
+end
+
+function geo_upgrade()
+	local component = luci.http.formvalue("component")
+	local data, status, err = read_geo_state(component, "upgrade")
+	if not data then
+		luci.http.status(status or 500, "Bad Request")
+		write_geo_json({component = component, error = err or "bad_request", success = "0"})
+		return
+	end
+	write_geo_json(data)
 end
 
 function act_status()
