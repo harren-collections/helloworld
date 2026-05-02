@@ -150,10 +150,6 @@ supports_builtin_dns() {
 get_builtin_dns_fallback_mode() {
 	if is_finded "dns2tcp"; then
 		echo "1"
-	elif is_finded "dns2socks"; then
-		echo "2"
-	elif is_finded "dns2socks-rust"; then
-		echo "3"
 	elif is_finded "dnsproxy"; then
 		echo "5"
 	elif is_finded "chinadns-ng"; then
@@ -644,17 +640,6 @@ start_dns() {
 		1)
 			start_dns2tcp "$dnsserver"
 			pdnsd_enable_flag=1
-			;;
-		2)
-			ln_start_bin $(first_type microsocks) microsocks -i 127.0.0.1 -p $tmp_dns_port ssrplus-dns
-			ln_start_bin $(first_type dns2socks) dns2socks 127.0.0.1:$tmp_dns_port $dnsserver 127.0.0.1:$dns_port -q
-			pdnsd_enable_flag=2
-			;;
-		3)
-			ln_start_bin $(first_type microsocks) microsocks -i 127.0.0.1 -p $tmp_dns_port ssrplus-dns
-			ln_start_bin $(first_type dns2socks-rust) dns2socks-rust -s socks5://127.0.0.1:$tmp_dns_port -d $dnsserver -l 127.0.0.1:$dns_port -f -c
-			echolog "DNS2SOCKS Rust query and cache Started!"
-			pdnsd_enable_flag=3
 			;;
 		4)
 			local filter_aaaa="$(get_filter_aaaa)"

@@ -62,6 +62,11 @@ if [ -s "/etc/config/shadowsocksr" ]; then
         uci -q set shadowsocksr.@global[0].filter_aaaa="${legacy_filter_aaaa:-1}"
     fi
 
+    legacy_dns_mode="$(uci -q get shadowsocksr.@global[0].pdnsd_enable)"
+    if [ "$legacy_dns_mode" = "2" ] || [ "$legacy_dns_mode" = "3" ]; then
+        uci -q set shadowsocksr.@global[0].pdnsd_enable='1'
+    fi
+
     if uci -q get shadowsocksr.@global[0].mosdns_ipv6 > /dev/null; then
         uci -q delete shadowsocksr.@global[0].mosdns_ipv6
     fi

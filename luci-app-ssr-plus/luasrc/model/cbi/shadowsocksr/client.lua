@@ -121,12 +121,6 @@ o = s:option(ListValue, "pdnsd_enable", translate("Resolve Dns Mode"))
 if is_finded("dns2tcp") then
 	o:value("1", translate("Use DNS2TCP query"))
 end
-if is_finded("dns2socks") then
-	o:value("2", translate("Use DNS2SOCKS query and cache"))
-end
-if is_finded("dns2socks-rust") then
-	o:value("3", translate("Use DNS2SOCKS-RUST query and cache"))
-end
 if is_finded("mosdns") then
 	o:value("4", translate("Use MosDNS query"))
 end
@@ -153,8 +147,6 @@ o:value("4.2.2.3:53", translate("Level 3 Public DNS (4.2.2.3)"))
 o:value("4.2.2.4:53", translate("Level 3 Public DNS (4.2.2.4)"))
 o:value("1.1.1.1:53", translate("Cloudflare DNS (1.1.1.1)"))
 o:depends("pdnsd_enable", "1")
-o:depends("pdnsd_enable", "2")
-o:depends("pdnsd_enable", "3")
 o:depends("pdnsd_enable", "7")
 o.description = translate("Custom DNS Server format as IP:PORT (default: 8.8.4.4:53)")
 o.datatype = "ip4addrport"
@@ -266,8 +258,6 @@ if is_finded("chinadns-ng") then
 	o:value("123.125.81.6:53", translate("360 Security DNS (China Unicom) (123.125.81.6)"))
 	o:value("1.2.4.8:53", translate("CNNIC SDNS (1.2.4.8)"))
 	o:depends({pdnsd_enable = "1", run_mode = "router"})
-	o:depends({pdnsd_enable = "2", run_mode = "router"})
-	o:depends({pdnsd_enable = "3", run_mode = "router"})
 	o:depends({pdnsd_enable = "5", run_mode = "router"})
 	o:depends({pdnsd_enable = "6", run_mode = "router"})
 	o.description = translate("Custom DNS Server format as IP:PORT (default: disabled)")
