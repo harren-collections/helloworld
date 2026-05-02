@@ -1296,6 +1296,11 @@ local function processData(szType, content, cfgid)
 			end
 		end
 	elseif szType == "tuic" then
+		if not tuic_type then
+			log("跳过 TUIC 节点：本地未安装 tuic-client。")
+			return nil
+		end
+
 		-- 提取别名（如果存在）
 		local alias = ""
 		if content:find("#") then
@@ -1401,6 +1406,10 @@ local function processData(szType, content, cfgid)
 				result.insecure = "1"
 			end
 		end
+	end
+
+	if not result.type or result.type == "" or result.type == "0" then
+		return nil
 	end
 
 	if not result.alias then
