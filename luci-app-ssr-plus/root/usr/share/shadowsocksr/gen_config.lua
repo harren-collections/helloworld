@@ -289,7 +289,7 @@ local Xray = {
 	outbounds = {},
 }
 
-if server.type == "v2ray" and dns_mode == "7" then
+if server.type == "v2ray" and dns_mode == "7" and os.getenv("SSR_SWITCH_PROBE") ~= "1" then
 	local dns_host = builtin_dns_server:match("^([^:]+)") or "8.8.4.4"
 	local dns_port = tonumber(builtin_dns_server:match(":(%d+)$")) or 53
 
