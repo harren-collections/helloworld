@@ -371,10 +371,34 @@ end
 
 	o = s:option(Value, "alias", translate("Alias(optional)"))
 
+	local function clash_source_formvalue(map, section, option)
+		local value = map:formvalue("cbid." .. map.config .. "." .. section .. "." .. option)
+		if value == nil then
+			value = map.uci:get(map.config, section, option)
+		end
+		return trim(value or "")
+	end
+
+	local function validate_clash_source(self, value, section)
+		local clash_url = clash_source_formvalue(self.map, section, "clash_url")
+		local clash_path = clash_source_formvalue(self.map, section, "clash_path")
+		if clash_url == "" and clash_path == "" then
+			return nil, translate("Please specify either a Clash subscription URL or a local YAML path.")
+		end
+		return value
+	end
+
 	o = s:option(Value, "clash_url", translate("Clash Subscription URL"))
 	o.placeholder = "https://example.com/config.yaml"
-	o.rmempty = false
+	o.rmempty = true
 	o:depends("type", "clash")
+	o.validate = validate_clash_source
+
+	o = s:option(Value, "clash_path", translate("Clash YAML Path"))
+	o.placeholder = "/etc/ssrplus/clash/custom.yaml"
+	o.rmempty = true
+	o:depends("type", "clash")
+	o.validate = validate_clash_source
 
 	o = s:option(Value, "clash_user_agent", translate("Clash User-Agent"))
 	o.default = "clash"

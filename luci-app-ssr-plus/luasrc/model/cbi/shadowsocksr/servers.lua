@@ -1,9 +1,11 @@
 -- Licensed to the public under the GNU General Public License v3.
 require "luci.http"
 require "luci.sys"
+require "luci.util"
 require "nixio.fs"
 require "luci.dispatcher"
 require "luci.model.uci"
+local nixio = require "nixio"
 local json = require "luci.jsonc"
 local cbi = require "luci.cbi"
 local uci = require "luci.model.uci".cursor()
@@ -13,6 +15,205 @@ local m, s, o, node
 local server_count = 0
 local server_cache = {}
 local detect_cache = {}
+local CLASH_YAML_DIR = "/etc/ssrplus/clash"
+local CLASH_YAML_HELPER = "/usr/share/shadowsocksr/clash_yaml.lua"
+
+local function is_finded(e)
+	return luci.sys.exec(string.format('type -t -p "%s" -p "/usr/libexec/%s" 2>/dev/null', e, e)) ~= ""
+end
+
+local function trim(text)
+	if not text or text == "" then
+		return ""
+	end
+	return (text:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+local function upload_alias(filename)
+	local stem = tostring(filename or ""):gsub("\\", "/"):match("([^/]+)$") or "custom"
+	stem = stem:gsub("%.%w+$", "")
+	stem = trim(stem):gsub("[%c\r\n]+", " "):gsub("%s+", " ")
+	if stem == "" then
+		stem = "custom"
+	end
+	return "Clash_" .. stem
+end
+
+local function hash_file(path)
+	local cmd = "md5sum " .. luci.util.shellquote(path) .. " 2>/dev/null | awk '{print $1}'"
+	return trim(luci.sys.exec(cmd))
+end
+
+local function preprocess_clash_yaml(input_path, output_path)
+	local cmd = string.format(
+		"/usr/bin/lua %s prepare %s %s >/dev/null 2>&1",
+		luci.util.shellquote(CLASH_YAML_HELPER),
+		luci.util.shellquote(input_path),
+		luci.util.shellquote(output_path)
+	)
+	return luci.sys.call(cmd) == 0
+end
+
+local function clash_path_in_use(path, exclude_sid)
+	local in_use = false
+
+	uci:foreach("shadowsocksr", "servers", function(section)
+		if section[".name"] ~= exclude_sid and section.clash_path == path then
+			in_use = true
+			return false
+		end
+	end)
+
+	return in_use
+end
+
+local function cleanup_old_clash_path(old_path, new_path, sid)
+	if not old_path or old_path == "" or old_path == new_path then
+		return
+	end
+	if old_path:sub(1, #CLASH_YAML_DIR + 1) ~= CLASH_YAML_DIR .. "/" then
+		return
+	end
+	if clash_path_in_use(old_path, sid) then
+		return
+	end
+	nixio.fs.remove(old_path)
+end
+
+local function find_uploaded_clash_section(upload_name, final_path)
+	local sid
+
+	uci:foreach("shadowsocksr", "servers", function(section)
+		if section.type ~= "clash" or section.yaml_upload ~= "1" then
+			return
+		end
+		if upload_name ~= "" and section.yaml_upload_name == upload_name then
+			sid = section[".name"]
+			return false
+		end
+		if final_path ~= "" and section.clash_path == final_path then
+			sid = section[".name"]
+			return false
+		end
+	end)
+
+	return sid
+end
+
+local function save_uploaded_clash_node(upload_name, final_path)
+	local sid = find_uploaded_clash_section(upload_name, final_path)
+	local old_path
+	local alias
+
+	if not sid then
+		sid = uci:add("shadowsocksr", "servers")
+	end
+	if not sid then
+		return nil
+	end
+
+	old_path = uci:get("shadowsocksr", sid, "clash_path")
+	alias = uci:get("shadowsocksr", sid, "alias")
+	if not alias or alias == "" then
+		alias = upload_alias(upload_name)
+	end
+
+	uci:set("shadowsocksr", sid, "type", "clash")
+	uci:set("shadowsocksr", sid, "alias", alias)
+	uci:set("shadowsocksr", sid, "server", "127.0.0.1")
+	uci:set("shadowsocksr", sid, "server_port", "0")
+	uci:delete("shadowsocksr", sid, "clash_url")
+	uci:set("shadowsocksr", sid, "clash_path", final_path)
+	uci:set("shadowsocksr", sid, "clash_user_agent", uci:get("shadowsocksr", sid, "clash_user_agent") or "clash")
+	if not uci:get("shadowsocksr", sid, "switch_enable") then
+		uci:set("shadowsocksr", sid, "switch_enable", uci:get_first("shadowsocksr", "server_subscribe", "switch", "1") or "1")
+	end
+	uci:set("shadowsocksr", sid, "yaml_upload", "1")
+	uci:set("shadowsocksr", sid, "yaml_upload_name", upload_name)
+	uci:save("shadowsocksr")
+	uci:commit("shadowsocksr")
+
+	cleanup_old_clash_path(old_path, final_path, sid)
+	luci.sys.call(string.format("/etc/init.d/shadowsocksr clash_cache %s >/dev/null 2>&1 &", luci.util.shellquote(sid)))
+	return sid, alias
+end
+
+local has_mihomo = is_finded("mihomo")
+local upload_fd
+local upload_tmp_path
+local upload_filename
+local upload_message
+local upload_errmessage
+
+if has_mihomo then
+	luci.http.setfilehandler(function(meta, chunk, eof)
+		if not meta or meta.name ~= "clash_yaml_file" then
+			return
+		end
+
+		if not upload_fd then
+			if not meta.file or meta.file == "" then
+				return
+			end
+			upload_filename = tostring(meta.file):gsub("[\r\n]", "")
+			upload_tmp_path = string.format("/tmp/ssrplus-clash-upload-%d-%d.yaml", nixio.getpid(), os.time())
+			upload_fd = nixio.open(upload_tmp_path, "w")
+			if not upload_fd then
+				upload_errmessage = translate("Failed to create temporary YAML upload file.")
+				upload_tmp_path = nil
+				upload_filename = nil
+				return
+			end
+		end
+
+		if chunk and upload_fd then
+			upload_fd:write(chunk)
+		end
+
+		if eof and upload_fd then
+			upload_fd:close()
+			upload_fd = nil
+		end
+	end)
+
+	if luci.http.formvalue("upload_clash_yaml") then
+		if not upload_tmp_path or not upload_filename or not nixio.fs.access(upload_tmp_path) then
+			upload_errmessage = upload_errmessage or translate("No custom YAML file was selected.")
+		else
+			local hash
+			local final_path
+			local tmp_output = string.format("%s/.upload-%d-%d.yaml", CLASH_YAML_DIR, nixio.getpid(), os.time())
+			local sid
+			local alias
+
+			nixio.fs.mkdirr(CLASH_YAML_DIR)
+			nixio.fs.remove(tmp_output)
+			if preprocess_clash_yaml(upload_tmp_path, tmp_output) then
+				hash = hash_file(tmp_output)
+				if hash == "" then
+					nixio.fs.remove(tmp_output)
+					upload_errmessage = translate("Uploaded YAML validation or preprocessing failed.")
+				else
+					final_path = string.format("%s/%s.yaml", CLASH_YAML_DIR, hash)
+					luci.sys.call(string.format("mv -f %s %s", luci.util.shellquote(tmp_output), luci.util.shellquote(final_path)))
+					sid, alias = save_uploaded_clash_node(upload_filename, final_path)
+					if sid then
+						upload_message = string.format(translate("Custom YAML imported successfully: %s"), alias or sid)
+					else
+						upload_errmessage = translate("Uploaded YAML validation or preprocessing failed.")
+					end
+				end
+			else
+				nixio.fs.remove(tmp_output)
+				upload_errmessage = translate("Uploaded YAML validation or preprocessing failed.")
+			end
+		end
+
+		if upload_tmp_path then
+			nixio.fs.remove(upload_tmp_path)
+		end
+	end
+end
 
 local function preserve_when_hidden(opt, controller, enabled_value)
 	local original_parse = opt.parse
@@ -77,6 +278,11 @@ do
 end
 
 m = Map("shadowsocksr", translate("Servers subscription and manage"))
+if upload_errmessage then
+	m.errmessage = upload_errmessage
+elseif upload_message then
+	m.message = upload_message
+end
 
 -- Server Subscribe
 s = m:section(TypedSection, "server_subscribe")
@@ -117,6 +323,12 @@ o:depends("auto_update", "1")
 
 o = s:option(DynamicList, "subscribe_url", translate("Subscribe URL"))
 o.rmempty = true
+
+if has_mihomo then
+	o = s:option(DummyValue, "_upload_clash_yaml", translate("Upload Custom YAML File"))
+	o.template = "shadowsocksr/clash_yaml_upload"
+	o.description = translate("Upload a custom Clash/Mihomo YAML file. The file will be preprocessed and saved as a local Clash node.")
+end
 
 o = s:option(Flag, "subscribe_advanced", translate("Subscribe Advanced Settings"))
 o.rmempty = false

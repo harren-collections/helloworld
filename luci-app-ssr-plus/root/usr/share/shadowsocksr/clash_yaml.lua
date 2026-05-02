@@ -151,6 +151,28 @@ local function strip_runtime_conflicts(doc)
 	end
 end
 
+local function prepare(input_path, output_path)
+	local doc, err = load_yaml(input_path)
+	if not doc then
+		io.stderr:write(err or "parse_failed", "\n")
+		return false
+	end
+	if not has_proxy_sections(doc) then
+		io.stderr:write("missing_proxy_sections\n")
+		return false
+	end
+
+	strip_runtime_conflicts(doc)
+	local ok, rendered = pcall(lyaml.dump, { doc })
+	if not ok or not rendered then
+		io.stderr:write("dump_failed\n")
+		return false
+	end
+
+	write_file(output_path, rendered)
+	return true
+end
+
 local function merge(raw_path, overlay_path, output_path)
 	local raw_doc, raw_err = load_yaml(raw_path)
 	if not raw_doc then
@@ -181,9 +203,11 @@ if action == "validate" then
 	os.exit(validate(arg[2]) and 0 or 1)
 elseif action == "filter" then
 	os.exit(filter(arg[2], arg[3]) and 0 or 1)
+elseif action == "prepare" then
+	os.exit(prepare(arg[2], arg[3]) and 0 or 1)
 elseif action == "merge" then
 	os.exit(merge(arg[2], arg[3], arg[4]) and 0 or 1)
 else
-	io.stderr:write("usage: clash_yaml.lua validate <yaml> | filter <yaml> <words> | merge <raw> <overlay> <output>\n")
+	io.stderr:write("usage: clash_yaml.lua validate <yaml> | filter <yaml> <words> | prepare <input> <output> | merge <raw> <overlay> <output>\n")
 	os.exit(1)
 end

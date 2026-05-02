@@ -2319,6 +2319,30 @@ msgstr ""
 msgid "Upload"
 msgstr ""
 
+msgid "Upload Custom YAML File"
+msgstr ""
+
+msgid "Upload a custom Clash/Mihomo YAML file. The file will be preprocessed and saved as a local Clash node."
+msgstr ""
+
+msgid "No custom YAML file was selected."
+msgstr ""
+
+msgid "Failed to create temporary YAML upload file."
+msgstr ""
+
+msgid "Uploaded YAML validation or preprocessing failed."
+msgstr ""
+
+msgid "Custom YAML imported successfully: %s"
+msgstr ""
+
+msgid "Clash YAML Path"
+msgstr ""
+
+msgid "Please specify either a Clash subscription URL or a local YAML path."
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:120
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:144
 msgid "Use ChinaDNS-NG query and cache"

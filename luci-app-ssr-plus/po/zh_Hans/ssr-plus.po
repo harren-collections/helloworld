@@ -2477,6 +2477,30 @@ msgstr "上行链路容量（默认：Mbps）"
 msgid "Upload"
 msgstr "上传"
 
+msgid "Upload Custom YAML File"
+msgstr "上传自定义YAML文件"
+
+msgid "Upload a custom Clash/Mihomo YAML file. The file will be preprocessed and saved as a local Clash node."
+msgstr "上传自定义 Clash/Mihomo YAML 文件。文件会先做预处理，再保存为本地 Clash 节点。"
+
+msgid "No custom YAML file was selected."
+msgstr "没有选择自定义 YAML 文件。"
+
+msgid "Failed to create temporary YAML upload file."
+msgstr "创建临时 YAML 上传文件失败。"
+
+msgid "Uploaded YAML validation or preprocessing failed."
+msgstr "上传的 YAML 校验或预处理失败。"
+
+msgid "Custom YAML imported successfully: %s"
+msgstr "自定义 YAML 导入成功：%s"
+
+msgid "Clash YAML Path"
+msgstr "Clash YAML 路径"
+
+msgid "Please specify either a Clash subscription URL or a local YAML path."
+msgstr "请填写 Clash 订阅 URL 或本地 YAML 路径中的至少一项。"
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:120
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:144
 msgid "Use ChinaDNS-NG query and cache"
