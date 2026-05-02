@@ -1762,6 +1762,36 @@ msgstr ""
 msgid "Refresh..."
 msgstr ""
 
+msgid "Reload YAML"
+msgstr ""
+
+msgid "Reloading YAML..."
+msgstr ""
+
+msgid "YAML Reloaded!"
+msgstr ""
+
+msgid "YAML Reload Failed!"
+msgstr ""
+
+msgid "Reset Default Proxies Rules"
+msgstr ""
+
+msgid "Reset saved Mihomo proxy-group selections and restore YAML defaults?"
+msgstr ""
+
+msgid "Resetting Defaults..."
+msgstr ""
+
+msgid "Defaults Restored!"
+msgstr ""
+
+msgid "Defaults Cleared!"
+msgstr ""
+
+msgid "Reset Defaults Failed!"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:134
 msgid "Regular update (Hour)"
 msgstr ""

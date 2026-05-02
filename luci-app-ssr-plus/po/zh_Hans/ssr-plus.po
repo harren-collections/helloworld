@@ -1927,6 +1927,36 @@ msgstr "更新成功！"
 msgid "Refresh..."
 msgstr "正在更新，请稍候..."
 
+msgid "Reload YAML"
+msgstr "重载 YAML"
+
+msgid "Reloading YAML..."
+msgstr "正在重载 YAML..."
+
+msgid "YAML Reloaded!"
+msgstr "YAML 已重载！"
+
+msgid "YAML Reload Failed!"
+msgstr "YAML 重载失败！"
+
+msgid "Reset Default Proxies Rules"
+msgstr "重置默认代理规则"
+
+msgid "Reset saved Mihomo proxy-group selections and restore YAML defaults?"
+msgstr "要清空已保存的 Mihomo 分组选择，并恢复为 YAML 默认值吗？"
+
+msgid "Resetting Defaults..."
+msgstr "正在重置默认值..."
+
+msgid "Defaults Restored!"
+msgstr "默认值已恢复！"
+
+msgid "Defaults Cleared!"
+msgstr "已清空默认状态！"
+
+msgid "Reset Defaults Failed!"
+msgstr "重置默认值失败！"
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:134
 msgid "Regular update (Hour)"
 msgstr "定时更新（小时）"

@@ -89,6 +89,10 @@ local function get_clash_cache_file(sid)
 	return "/etc/ssrplus/clash/" .. sid .. ".yaml"
 end
 
+local function get_clash_state_file(sid)
+	return "/etc/ssrplus/clash/" .. sid .. ".cache.db"
+end
+
 local function clash_process_running()
 	return luci.sys.call("(busybox ps -w 2>/dev/null || busybox ps) | grep ssr-retcp | grep -v grep >/dev/null") == 0
 end
@@ -353,6 +357,7 @@ function index()
 	entry({"admin", "services", "shadowsocksr", "clash_groups"}, call("clash_groups")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "clash_switch"}, call("clash_switch")).leaf = true
 	entry({"admin", "services", "shadowsocksr", "clash_refresh"}, call("clash_refresh")).leaf = true
+	entry({"admin", "services", "shadowsocksr", "clash_reset_defaults"}, call("clash_reset_defaults")).leaf = true
 	--[[Backup]]
 	entry({"admin", "services", "shadowsocksr", "backup"}, call("create_backup")).leaf = true
 end
@@ -565,6 +570,36 @@ function clash_refresh()
 	luci.http.write_json({
 		success = ok,
 		cached = nixio.fs.access(get_clash_cache_file(sid)),
+		reapplied = reapplied
+	})
+end
+
+function clash_reset_defaults()
+	local sid = luci.http.formvalue("sid")
+	if not sid or uci:get("shadowsocksr", sid) ~= "servers" or uci:get("shadowsocksr", sid, "type") ~= "clash" then
+		luci.http.status(400, "Bad Request")
+		luci.http.prepare_content("application/json")
+		luci.http.write_json({success = false})
+		return
+	end
+
+	local state_file = get_clash_state_file(sid)
+	local cleared = false
+	if nixio.fs.access(state_file) then
+		cleared = nixio.fs.remove(state_file) or false
+	else
+		cleared = true
+	end
+
+	local reapplied = false
+	if cleared and is_active_clash_node(sid) then
+		luci.sys.call("/etc/init.d/shadowsocksr restart >/dev/null 2>&1 &")
+		reapplied = true
+	end
+
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({
+		success = cleared,
 		reapplied = reapplied
 	})
 end
