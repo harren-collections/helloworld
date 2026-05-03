@@ -43,7 +43,7 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 			top: 50%;
 			left: 50%;
 			transform: translate(-50%, -50%);
-			width: min(900px, calc(100vw - 32px));
+			width: min(1080px, calc(100vw - 32px));
 			min-height: min(570px, calc(100vh - 48px));
 			max-height: min(645px, calc(100vh - 48px));
 			overflow: auto;
@@ -81,11 +81,11 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 		#ssr-clash-modal-actions {
 			display: flex;
 			align-items: center;
-			justify-content: flex-end;
+			justify-content: center;
 			gap: 8px;
 			flex-wrap: wrap;
 			margin: 0;
-			margin-left: auto;
+			flex: 1 1 auto;
 		}
 
 		#ssr-clash-modal-header #ssr-clash-rules-add {
@@ -701,9 +701,19 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 			setPanelStatus('<%:Loading...%>', '#666');
 			var groupsEl = document.getElementById('ssr-clash-modal-groups');
 			var rulesEl = document.getElementById('ssr-clash-client-rules');
+			var addBtn = document.getElementById('ssr-clash-rules-add');
+			var saveBtn = document.getElementById('ssr-clash-rules-save');
+			var clearBtn = document.getElementById('ssr-clash-rules-clear');
+			var exportBtn = document.getElementById('ssr-clash-rules-export');
+			var importBtn = document.getElementById('ssr-clash-rules-import');
 			var refreshBtn = document.getElementById('ssr-clash-modal-refresh');
 			if (groupsEl) groupsEl.style.display = 'none';
 			if (rulesEl) rulesEl.style.display = 'block';
+			if (addBtn) addBtn.style.display = '';
+			if (saveBtn) saveBtn.style.display = '';
+			if (clearBtn) clearBtn.style.display = '';
+			if (exportBtn) exportBtn.style.display = '';
+			if (importBtn) importBtn.style.display = '';
 			if (refreshBtn) refreshBtn.style.display = 'none';
 
 			XHR.get('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_client_policies")%>', {
@@ -744,9 +754,19 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 			setPanelStatus('<%:Loading...%>', '#666');
 			var groupsEl = document.getElementById('ssr-clash-modal-groups');
 			var rulesEl = document.getElementById('ssr-clash-client-rules');
+			var addBtn = document.getElementById('ssr-clash-rules-add');
+			var saveBtn = document.getElementById('ssr-clash-rules-save');
+			var clearBtn = document.getElementById('ssr-clash-rules-clear');
+			var exportBtn = document.getElementById('ssr-clash-rules-export');
+			var importBtn = document.getElementById('ssr-clash-rules-import');
 			var refreshBtn = document.getElementById('ssr-clash-modal-refresh');
 			if (groupsEl) groupsEl.style.display = 'block';
 			if (rulesEl) rulesEl.style.display = 'none';
+			if (addBtn) addBtn.style.display = 'none';
+			if (saveBtn) saveBtn.style.display = 'none';
+			if (clearBtn) clearBtn.style.display = 'none';
+			if (exportBtn) exportBtn.style.display = 'none';
+			if (importBtn) importBtn.style.display = 'none';
 			if (refreshBtn) refreshBtn.style.display = '';
 			XHR.get('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_groups")%>', {
 				sid: sid
@@ -911,6 +931,29 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 				};
 			}
 
+			var modalRulesClearBtn = document.getElementById('ssr-clash-rules-clear');
+			if (modalRulesClearBtn) {
+				modalRulesClearBtn.onclick = function() {
+					if (!window.confirm('<%:Clear all custom client proxy rules and restore empty state?%>')) {
+						return false;
+					}
+					modalRulesClearBtn.disabled = true;
+					XHR.post('<%=luci.dispatcher.build_url("admin", "services", "shadowsocksr", "clash_client_rule_clear")%>', {
+						sid: currentEditorSid
+					}, function(x, result) {
+						modalRulesClearBtn.disabled = false;
+						if (result && result.success) {
+							clientRules = [];
+							renderClientRuleRows();
+							setPanelStatus(result.reapplied ? '<%:All client proxy rules cleared and applied.%>' : '<%:All client proxy rules cleared.%>', '#249400');
+						} else {
+							setPanelStatus('<%:Failed to clear all client proxy rules.%>', '#ff0000');
+						}
+					});
+					return false;
+				};
+			}
+
 			if (modalCloseBtn) {
 				modalCloseBtn.onclick = closePanel;
 			}
@@ -955,11 +998,12 @@ local current_sid = self.map:get(section, "global_server") or "nil"
 				<input type="button" id="ssr-clash-rules-add" class="btn cbi-button" value="<%:Add%>" onclick="return window.ssrClashAddClientRule();" />
 			</div>
 			<div id="ssr-clash-modal-actions">
+				<input type="button" id="ssr-clash-rules-clear" class="btn cbi-button" value="<%:Clear All Rules%>" />
 				<input type="button" id="ssr-clash-rules-export" class="btn cbi-button" value="<%:Export Client Rules%>" />
 				<input type="button" id="ssr-clash-rules-import" class="btn cbi-button" value="<%:Import Client Rules%>" />
 				<input type="file" id="ssr-clash-rules-import-file" accept=".csv,text/csv" style="display:none" />
-				<input type="button" id="ssr-clash-rules-save" class="btn cbi-button cbi-button-apply" value="<%:Save%>" onclick="return window.ssrClashSaveClientRules(this);" />
 			</div>
+			<input type="button" id="ssr-clash-rules-save" class="btn cbi-button cbi-button-apply" value="<%:Save%>" onclick="return window.ssrClashSaveClientRules(this);" />
 			<input type="button" id="ssr-clash-modal-close" class="btn cbi-button" value="<%:Close%>" />
 		</div>
 		<div id="ssr-clash-client-rules">
