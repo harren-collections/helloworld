@@ -270,12 +270,24 @@ local function append_client_policy_rules(runtime_path)
 		return false
 	end
 
+	local valid_policies = {}
+	for _, proxy in ipairs(doc.proxies or {}) do
+		if type(proxy) == "table" and proxy.name and proxy.name ~= "" then
+			valid_policies[tostring(proxy.name)] = true
+		end
+	end
+	for _, group in ipairs(doc["proxy-groups"] or {}) do
+		if type(group) == "table" and group.name and group.name ~= "" then
+			valid_policies[tostring(group.name)] = true
+		end
+	end
+
 	local custom_rules = {}
 	uci:foreach("shadowsocksr", "clash_client_group", function(section)
 		if tostring(section.enabled or "0") == "1" then
 			local ip_addr = tostring(section.ip_addr or "")
 			local policy_group = tostring(section.policy_group or "")
-			if ip_addr ~= "" and policy_group ~= "" then
+			if ip_addr ~= "" and policy_group ~= "" and valid_policies[policy_group] then
 				if not ip_addr:find("/", 1, true) then
 					ip_addr = ip_addr .. "/32"
 				end
