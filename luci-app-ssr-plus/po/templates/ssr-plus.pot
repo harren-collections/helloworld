@@ -967,7 +967,7 @@ msgstr ""
 msgid "Global HTTP/HTTPS Proxy Server"
 msgstr ""
 
-msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash is supported only when reusing Same as Global Server."
+msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash can be reused only in the Same as Global Server scenario. For generic SOCKS outbound, please use an Xray Socks node."
 msgstr ""
 
 msgid "HTTP Auth Mode"
@@ -2878,7 +2878,7 @@ msgstr ""
 msgid "Clash User-Agent"
 msgstr ""
 
-msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash can be reused only in the Same as Global Server scenario. Use Xray Socks for generic Socks outbound."
+msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash can be reused only in the Same as Global Server scenario. For generic SOCKS outbound, please use an Xray Socks node."
 msgstr ""
 
 msgid "Panel"

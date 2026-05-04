@@ -1129,8 +1129,8 @@ msgstr "SOCKS5 代理服务端（全局）"
 msgid "Global HTTP/HTTPS Proxy Server"
 msgstr "HTTP/HTTPS 代理服务端（全局）"
 
-msgid "Clash is supported only when reusing Same as Global Server."
-msgstr "Clash 仅支持在复用“与全局节点相同”时使用。"
+msgid "Clash can be reused only in the Same as Global Server scenario. For generic SOCKS outbound, please use an Xray Socks node."
+msgstr "Clash 仅可在“与全局节点相同”的场景下复用。通用 SOCKS 出站请使用 Xray Socks 节点。"
 
 msgid "HTTP Auth Mode"
 msgstr "HTTP 认证模式"
@@ -3268,8 +3268,8 @@ msgstr "Clash 订阅链接"
 msgid "Clash User-Agent"
 msgstr "Clash User-Agent"
 
-msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash can be reused only in the Same as Global Server scenario. Use Xray Socks for generic Socks outbound."
-msgstr "轻量 Socks5 透明代理节点不支持在这里使用。Clash 仅可在“与全局节点相同”的场景下复用。通用 Socks 出站请使用 Xray Socks。"
+msgid "Lightweight Socks5 transparent proxy nodes are not available here. Clash can be reused only in the Same as Global Server scenario. For generic SOCKS outbound, please use an Xray Socks node."
+msgstr "轻量 Socks5 透明代理节点不支持在这里使用。Clash 仅可在“与全局节点相同”的场景下复用。通用 SOCKS 出站请使用 Xray Socks 节点。"
 
 msgid "Panel"
 msgstr "面板"

@@ -1363,16 +1363,6 @@ Start_Run() {
 			ln_start_bin "$mihomo_bin" ssr-retcp -d "$clash_workdir" -f "$clash_workdir/config.yaml"
 			echolog "Main node:Mihomo (Clash) Started!"
 			;;
-		socks5)
-			if [ "$(uci_get_by_name $GLOBAL_SERVER auth_enable 0)" == "1" ]; then
-				local auth="-a $(uci_get_by_name $GLOBAL_SERVER username) -k $(uci_get_by_name $GLOBAL_SERVER password)"
-			fi
-			ln_start_bin $(first_type ipt2socks) ipt2socks -R -T -4 -j $threads \
-				-s $(uci_get_by_name $GLOBAL_SERVER server) \
-				-p $(uci_get_by_name $GLOBAL_SERVER server_port) \
-				-l $tcp_port $auth
-			echolog "Main node:Socks5 via IPT2Socks $threads Threads Started!"
-			;;
 	esac
 	redir_tcp=1
 	return 0
