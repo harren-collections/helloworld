@@ -392,14 +392,6 @@ msgstr ""
 msgid "China IP Data"
 msgstr ""
 
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:255
-msgid "ChinaDNS-NG query protocol"
-msgstr ""
-
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:226
-msgid "ChinaDNS-NG shunt query protocol"
-msgstr ""
-
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:89
 msgid "Chnroute Update url"
 msgstr ""
@@ -634,10 +626,6 @@ msgstr ""
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:78
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/control.lua:37
 msgid "Disable"
-msgstr ""
-
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:263
-msgid "Disable ChinaDNS-NG"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:152
@@ -2427,11 +2415,6 @@ msgid "Clash YAML Path"
 msgstr ""
 
 msgid "Please specify either a Clash subscription URL or a local YAML path."
-msgstr ""
-
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:120
-#: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client.lua:144
-msgid "Use ChinaDNS-NG query and cache"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:168
