@@ -4,7 +4,7 @@ LUCI_TITLE:=luci-app-ssr-plus
 LUCI_PKGARCH:=all
 PKG_NAME:=luci-app-ssr-plus
 PKG_VERSION:=192
-PKG_RELEASE:=12
+PKG_RELEASE:=13
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy \
@@ -19,7 +19,7 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client \
-	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client \
+	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Mihomo_Client \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Server \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Simple_Obfs \
@@ -37,6 +37,7 @@ LUCI_DEPENDS:= \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadow_TLS:shadow-tls \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun:kcptun-client \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy:naiveproxy \
+	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Mihomo_Client:mihomo \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client:shadowsocks-rust-sslocal \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server:shadowsocks-rust-ssserver \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Simple_Obfs:simple-obfs-client \
@@ -76,11 +77,15 @@ endchoice
 
 choice
 	prompt "Shadowsocks Client Selection"
-	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client if aarch64 || loongarch64 || x86_64
+	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Mihomo_Client if aarch64||arm||i386||loongarch64||riscv64||x86_64
+	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client if ! (aarch64||arm||i386||loongarch64||riscv64||x86_64)
 	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client
 	bool "None"
+
+	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Mihomo_Client
+	bool "Mihomo"
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client
 	bool "Shadowsocks-rust"
@@ -150,7 +155,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Simple_Obfs
 	bool "Include Shadowsocks Simple Obfs Plugin"
-	default y
+	default n
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_V2ray_Plugin
 	bool "Include Shadowsocks V2ray Plugin"

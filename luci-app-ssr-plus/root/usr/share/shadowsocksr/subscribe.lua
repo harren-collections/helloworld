@@ -34,6 +34,7 @@ local target_subscribe_sid = tostring(arg and arg[1] or ""):gsub("^%s*(.-)%s*$",
 
 local has_ss_rust = luci.sys.exec('type -t -p sslocal 2>/dev/null || type -t -p ssserver 2>/dev/null') ~= ""
 local has_xray = luci.sys.exec('type -t -p xray 2>/dev/null') ~= ""
+local has_mihomo = luci.sys.exec('type -t -p mihomo -p /usr/libexec/mihomo 2>/dev/null') ~= ""
 
 local tuic_type = luci.sys.exec('type -t -p mihomo -p /usr/libexec/mihomo 2>/dev/null') ~= "" and "tuic"
 local log = function(...)
@@ -41,6 +42,9 @@ local log = function(...)
 end
 
 local function preferred_ss_backend()
+	if has_mihomo then
+		return "ss"
+	end
 	if has_ss_rust then
 		return "ss-rust"
 	end

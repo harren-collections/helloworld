@@ -138,7 +138,7 @@ start_dns2tcp() {
 
 supports_builtin_dns() {
 	case "$1" in
-	clash|tuic|v2ray)
+	clash|tuic|v2ray|ss)
 		return 0
 		;;
 	*)
@@ -160,7 +160,7 @@ get_builtin_dns_fallback_mode() {
 is_builtin_dns_active() {
 	local global_server_type="$(uci_get_by_name "$GLOBAL_SERVER" type)"
 	case "$global_server_type" in
-	clash|tuic)
+	clash|tuic|ss)
 		ps_list | grep -v "grep" | grep -q "ssr-retcp"
 		;;
 	v2ray)
@@ -200,6 +200,22 @@ get_tuic_runtime_file() {
 	echo "$(get_tuic_workdir "$1")/config.yaml"
 }
 
+get_ss_mihomo_workdir() {
+	echo "$TMP_PATH/ss-$1"
+}
+
+get_ss_mihomo_runtime_file() {
+	echo "$(get_ss_mihomo_workdir "$1")/config.yaml"
+}
+
+get_ss_server_mihomo_workdir() {
+	echo "$TMP_PATH/ss-server-$1"
+}
+
+get_ss_server_mihomo_runtime_file() {
+	echo "$(get_ss_server_mihomo_workdir "$1")/config.yaml"
+}
+
 prepare_tuic_runtime_config() {
 	local sid="$1"
 	local local_port="$2"
@@ -226,6 +242,47 @@ prepare_tuic_runtime_config() {
 	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
 	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
 	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+}
+
+prepare_ss_mihomo_runtime_config() {
+	local sid="$1"
+	local local_port="$2"
+	local socks_port="$3"
+	local instance_key="${4:-$sid}"
+	local run_mode="${5:-redir}"
+	local runtime_file="$(get_ss_mihomo_runtime_file "$instance_key")"
+	local workdir="$(get_ss_mihomo_workdir "$instance_key")"
+
+	[ -n "$sid" ] || return 1
+	[ -n "$local_port" ] || return 1
+
+	mkdir -p "$workdir"
+	if ! /usr/bin/lua "$CLASH_YAML_HELPER" ss "$sid" "$runtime_file" "$local_port" "$socks_port" "$run_mode" >/dev/null 2>&1; then
+		echolog "Shadowsocks 单节点 Mihomo 运行配置生成失败：$sid"
+		return 1
+	fi
+
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
+	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
+	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
+	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
+	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
+	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+}
+
+prepare_ss_server_mihomo_runtime_config() {
+	local sid="$1"
+	local runtime_file="$(get_ss_server_mihomo_runtime_file "$sid")"
+	local workdir="$(get_ss_server_mihomo_workdir "$sid")"
+
+	[ -n "$sid" ] || return 1
+
+	mkdir -p "$workdir"
+	if ! /usr/bin/lua "$CLASH_YAML_HELPER" ss_server "$sid" "$runtime_file" >/dev/null 2>&1; then
+		echolog "Shadowsocks 服务端 Mihomo 配置生成失败：$sid"
+		return 1
+	fi
 }
 
 download_clash_config() {
@@ -888,21 +945,25 @@ start_udp() {
 	redir_udp=1
 	case "$type" in
 	ss | ssr)
-		gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_port
-		if [ "$udp_relay_server_type" = "ssr" ]; then
-			ss_program="$(first_type ${type}-redir)"
-		elif [ "$udp_relay_server_type" = "ss-rust" ] || [ "$udp_relay_server_type" = "ss" ]; then
-			ss_program="$(first_type ${type}local)"
+		if [ "$udp_relay_server_type" = "ss" ]; then
+			redir_udp=0
+			ARG_UDP=""
+			echolog "UDP TPROXY Relay:Mihomo 单节点由主实例处理。"
+		else
+			gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_port
+			if [ "$udp_relay_server_type" = "ssr" ]; then
+				ss_program="$(first_type ${type}-redir)"
+			elif [ "$udp_relay_server_type" = "ss-rust" ] || [ "$udp_relay_server_type" = "ss" ]; then
+				ss_program="$(first_type ${type}local)"
+			fi
+			echolog "$(get_name $type) program is: $ss_program"
+			old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-redir" 2>/dev/null)
+			if [ "$old_ss_program" != "$ss_program" ]; then
+				rm -rf "$TMP_PATH/bin/${type}-redir"
+			fi
+			ln_start_bin $ss_program ${type}-redir -c $udp_config_file
+			echolog "UDP TPROXY Relay:$(get_name $type) Started!"
 		fi
-		echolog "$(get_name $type) program is: $ss_program"
-		# 获取当前软链接指向的执行文件路径
-		old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-redir" 2>/dev/null)
-		# **当新旧执行文件路径不同时，删除旧链接**
-		if [ "$old_ss_program" != "$ss_program" ]; then
-			rm -rf "$TMP_PATH/bin/${type}-redir"
-		fi
-		ln_start_bin $ss_program ${type}-redir -c $udp_config_file
-		echolog "UDP TPROXY Relay:$(get_name $type) Started!"
 		;;
 	v2ray)
 		gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_port
@@ -965,21 +1026,34 @@ start_local() {
 	fi
 	case "$type" in
 	ss | ssr)
-		gen_config_file $LOCAL_SERVER $type 4 $local_port
-		if [ "$local_server_type" = "ssr" ]; then
-			ss_program="$(first_type ${type}-local)"
-		elif [ "$local_server_type" = "ss-rust" ] || [ "$local_server_type" = "ss" ]; then
-			ss_program="$(first_type ${type}local)"
+		if [ "$local_server_type" = "ss" ]; then
+			if [ "$_local" == "2" ]; then
+				local mihomo_bin="$(first_type mihomo)"
+				local instance_key="${LOCAL_SERVER}-local"
+				[ -x "$mihomo_bin" ] || {
+					echolog "Global_Socks5:Mihomo 内核不存在，请确认 /usr/bin/mihomo 或 /usr/libexec/mihomo 可执行。"
+					return 1
+				}
+				prepare_ss_mihomo_runtime_config "$LOCAL_SERVER" "$local_port" "$local_port" "$instance_key" "socks" || return 1
+				local ss_workdir="$(get_ss_mihomo_workdir "$instance_key")"
+				ln_start_bin "$mihomo_bin" ss-local -d "$ss_workdir" -f "$ss_workdir/config.yaml"
+				echolog "Global_Socks5:Mihomo (Shadowsocks) Started!"
+			fi
+		else
+			gen_config_file $LOCAL_SERVER $type 4 $local_port
+			if [ "$local_server_type" = "ssr" ]; then
+				ss_program="$(first_type ${type}-local)"
+			elif [ "$local_server_type" = "ss-rust" ] || [ "$local_server_type" = "ss" ]; then
+				ss_program="$(first_type ${type}local)"
+			fi
+			echolog "$(get_name $type) program is: $ss_program"
+			old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-local" 2>/dev/null)
+			if [ "$old_ss_program" != "$ss_program" ]; then
+				rm -rf "$TMP_PATH/bin/${type}-local"
+			fi
+			ln_start_bin $ss_program ${type}-local -c $local_config_file
+			echolog "Global_Socks5:$(get_name $type) Started!"
 		fi
-		echolog "$(get_name $type) program is: $ss_program"
-		# 获取当前软链接指向的执行文件路径
-		old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-local" 2>/dev/null)
-		# **当 新旧执行文件路径不同时，删除旧链接**
-		if [ "$old_ss_program" != "$ss_program" ]; then
-			rm -rf "$TMP_PATH/bin/${type}-local"
-		fi
-		ln_start_bin $ss_program ${type}-local -c $local_config_file
-		echolog "Global_Socks5:$(get_name $type) Started!"
 		;;
 	v2ray)
 		if [ "$_local" == "2" ]; then
@@ -1231,7 +1305,8 @@ Start_Run() {
 	else
 		local threads=$(uci_get_by_type global threads)
 	fi
-	if [ "$(uci_get_by_name $GLOBAL_SERVER kcp_enable 0)" == "1" ]; then
+	local global_server_type=$(uci_get_by_name $GLOBAL_SERVER type)
+	if [ "$(uci_get_by_name $GLOBAL_SERVER kcp_enable 0)" == "1" ] && [ "$global_server_type" != "ss" ]; then
 		[ ! -f "/usr/bin/kcptun-client" ] && return 1
 		local kcp_str=$(/usr/bin/kcptun-client -v | grep kcptun | wc -l)
 		[ "0" == "$kcp_str" ] && return 1
@@ -1260,30 +1335,43 @@ Start_Run() {
 		#}
 	fi
 	local tcp_port=$(get_default_node_local_port)
-	local global_server_type=$(uci_get_by_name $GLOBAL_SERVER type)
 	local type=$global_server_type
 	if [ "$global_server_type" = "ss-rust" ]; then
 		type="ss"
 	fi
 	case "$type" in
 	ss | ssr)
-		gen_config_file $GLOBAL_SERVER $type 1 $tcp_port
-		if [ "$global_server_type" = "ssr" ]; then
-			ss_program="$(first_type ${type}-redir)"
-		elif [ "$global_server_type" = "ss-rust" ] || [ "$global_server_type" = "ss" ]; then
-			ss_program="$(first_type ${type}local)"
+		if [ "$global_server_type" = "ss" ]; then
+			local mihomo_bin="$(first_type mihomo)"
+			local ss_socks_port=0
+			[ -x "$mihomo_bin" ] || {
+				echolog "Main node:Mihomo 内核不存在，请确认 /usr/bin/mihomo 或 /usr/libexec/mihomo 可执行。"
+				return 1
+			}
+			if [ "$_local" = "1" ] && [ "$LOCAL_SERVER" = "$GLOBAL_SERVER" ]; then
+				ss_socks_port=$(uci_get_by_type socks5_proxy local_port 1080)
+			fi
+			prepare_ss_mihomo_runtime_config "$GLOBAL_SERVER" "$tcp_port" "$ss_socks_port" "$GLOBAL_SERVER" "redir" || return 1
+			local ss_workdir="$(get_ss_mihomo_workdir "$GLOBAL_SERVER")"
+			ln_start_bin "$mihomo_bin" ssr-retcp -d "$ss_workdir" -f "$ss_workdir/config.yaml"
+			echolog "Main node:Mihomo (Shadowsocks) Started!"
+		else
+			gen_config_file $GLOBAL_SERVER $type 1 $tcp_port
+			if [ "$global_server_type" = "ssr" ]; then
+				ss_program="$(first_type ${type}-redir)"
+			elif [ "$global_server_type" = "ss-rust" ] || [ "$global_server_type" = "ss" ]; then
+				ss_program="$(first_type ${type}local)"
+			fi
+			echolog "$(get_name $type) program is: $ss_program"
+			old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-redir" 2>/dev/null)
+			if [ "$old_ss_program" != "$ss_program" ]; then
+				rm -rf "$TMP_PATH/bin/${type}-redir"
+			fi
+			for i in $(seq 1 $threads); do
+				ln_start_bin $ss_program ${type}-redir -c $tcp_config_file
+			done
+			echolog "Main node:$(get_name $type) $threads Threads Started!"
 		fi
-		echolog "$(get_name $type) program is: $ss_program"
-		# 获取当前软链接指向的执行文件路径
-		old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-redir" 2>/dev/null)
-		# **当新旧执行文件路径不同时，删除旧链接**
-		if [ "$old_ss_program" != "$ss_program" ]; then
-			rm -rf "$TMP_PATH/bin/${type}-redir"
-		fi
-		for i in $(seq 1 $threads); do
-			ln_start_bin $ss_program ${type}-redir -c $tcp_config_file
-		done
-		echolog "Main node:$(get_name $type) $threads Threads Started!"
 		;;
 	v2ray)
 		gen_config_file $GLOBAL_SERVER $type 1 $tcp_port $socks_port
@@ -1437,7 +1525,7 @@ load_config() {
 			_local="1"
 			LOCAL_SERVER=$GLOBAL_SERVER
 			local_config_file=$TMP_PATH/tcp-udp-ssr-local.json
-			if [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "clash" ] && [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "tuic" ]; then
+			if [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "clash" ] && [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "tuic" ] && [ "$(uci_get_by_name $GLOBAL_SERVER type)" != "ss" ]; then
 				start_local
 			fi
 			local_enable=0
@@ -1502,20 +1590,30 @@ start_server() {
 			fi
 			case "$type" in
 			ss | ssr)
-				gen_service_file ${type} $1 $TMP_PATH/ssr-server$server_count.json
-				if [ "$node_type" = "ssr" ]; then
-					ss_program="$(first_type ${type}-server)"
-				elif [ "$node_type" = "ss-rust" ] || [ "$node_type" = "ss" ]; then
-					ss_program="$(first_type ${type}server)"
+				if [ "$node_type" = "ss" ]; then
+					local mihomo_bin="$(first_type mihomo)"
+					[ -x "$mihomo_bin" ] || {
+						echolog "Server:Mihomo 内核不存在，请确认 /usr/bin/mihomo 或 /usr/libexec/mihomo 可执行。"
+						return 1
+					}
+					prepare_ss_server_mihomo_runtime_config "$1" || return 1
+					local ss_server_workdir="$(get_ss_server_mihomo_workdir "$1")"
+					ln_start_bin "$mihomo_bin" ss-server-$server_count -d "$ss_server_workdir" -f "$ss_server_workdir/config.yaml"
+					echolog "Server:Mihomo Shadowsocks Server$server_count Started!"
+				else
+					gen_service_file ${type} $1 $TMP_PATH/ssr-server$server_count.json
+					if [ "$node_type" = "ssr" ]; then
+						ss_program="$(first_type ${type}-server)"
+					elif [ "$node_type" = "ss-rust" ] || [ "$node_type" = "ss" ]; then
+						ss_program="$(first_type ${type}server)"
+					fi
+					old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-server" 2>/dev/null)
+					if [ "$old_ss_program" != "$ss_program" ]; then
+						rm -rf "$TMP_PATH/bin/${type}-server"
+					fi
+					ln_start_bin $ss_program ${type}-server -c $TMP_PATH/ssr-server$server_count.json
+					echolog "Server: $(get_name ${type}) Server$server_count Started!"
 				fi
-			# 获取当前软链接指向的执行文件路径
-			old_ss_program=$(readlink -f "$TMP_PATH/bin/${type}-server" 2>/dev/null)
-			# **当新旧执行文件路径不同时，删除旧链接**
-			if [ "$old_ss_program" != "$ss_program" ]; then
-				rm -rf "$TMP_PATH/bin/${type}-server" 
-			fi
-			ln_start_bin $ss_program ${type}-server -c $TMP_PATH/ssr-server$server_count.json
-			echolog "Server: $(get_name ${type}) Server$server_count Started!"
 			;;
 		socks5)
 			local listenip='-i 0.0.0.0'
