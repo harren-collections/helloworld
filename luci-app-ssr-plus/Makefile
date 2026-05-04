@@ -88,8 +88,6 @@ choice
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client
 	bool "Shadowsocks-rust"
-	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
-	depends on !(TARGET_x86_geode||TARGET_x86_legacy)
 endchoice
 
 choice
@@ -101,8 +99,6 @@ choice
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Server
 	bool "Shadowsocks-rust"
-	depends on aarch64||arm||i386||loongarch64||riscv64||x86_64
-	depends on !(TARGET_x86_geode||TARGET_x86_legacy)
 endchoice
 
 choice
