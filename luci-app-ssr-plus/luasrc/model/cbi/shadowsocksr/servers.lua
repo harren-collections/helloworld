@@ -474,7 +474,7 @@ s.addremove = true
 s.sortable = true
 s.template = "cbi/tblsection"
 s.template_addremove = "shadowsocksr/subscribe_actions_footer"
-s.description = translate("Manage multiple subscribe URLs, including Clash subscriptions.")
+s.description = translate("Manage multiple subscribe URLs, including Clash subscriptions. Only enabled entries are included when updating all subscriptions.")
 
 o = s:option(Flag, "enabled", translate("Enable"))
 o.rmempty = false
