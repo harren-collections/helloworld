@@ -1844,6 +1844,7 @@ start_rules() {
 			-w "$(uci_get_by_type access_control wan_fw_ips)" \
 			-B "$(uci_get_by_type access_control lan_bp_ips)" \
 			-p "$(uci_get_by_type access_control lan_fp_ips)" \
+			-G "$(uci_get_by_type access_control lan_gm_ips)" \
 			-m "$(uci_get_by_type access_control Interface)" \
 			-D "$proxyport" \
 			$(get_arg_out) $(gfwmode) $ARG_UDP $ARG_UDP_RULES $ARG_A
