@@ -1628,9 +1628,9 @@ msgstr ""
 msgid "No Check"
 msgstr "未检查"
 
-#: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:209
-msgid "No available core (Hysteria2 or Xray) to import this node."
-msgstr "没有可用的核心（Hysteria2 或 Xray）可以导入此节点。"
+#: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:154
+msgid "No available Xray core to import this Hysteria2 node."
+msgstr "没有可用的 Xray 核心可以导入此 Hysteria2 节点。"
 
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:632
 msgid "No available core (Shadowsocks or Xray) to import this node."

@@ -4,7 +4,7 @@ LUCI_TITLE:=luci-app-ssr-plus
 LUCI_PKGARCH:=all
 PKG_NAME:=luci-app-ssr-plus
 PKG_VERSION:=192
-PKG_RELEASE:=10
+PKG_RELEASE:=11
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_Iptables_Transparent_Proxy \
@@ -14,7 +14,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_DNS2TCP \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS \
-	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo \
 	CONFIG_PACKAGE_$(PKG_NAME)_INCLUDE_Shadow_TLS \
@@ -37,7 +36,6 @@ LUCI_DEPENDS:= \
 	+resolveip +curl +nping +unzip +xz-utils \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG:chinadns-ng \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS:mosdns \
-	+PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria:hysteria \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadow_TLS:shadow-tls \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun:kcptun-client \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy:naiveproxy \
@@ -121,11 +119,6 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG
 config PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS
 	bool "Include MosDNS"
 	default y if aarch64||arm||i386||x86_64
-
-config PACKAGE_$(PKG_NAME)_INCLUDE_Hysteria
-	bool "Include Hysteria"
-	select PACKAGE_$(PKG_NAME)_INCLUDE_ChinaDNS_NG
-	default n
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy
 	bool "Include HTTP Proxy"

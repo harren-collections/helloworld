@@ -1463,8 +1463,8 @@ msgstr ""
 msgid "No Check"
 msgstr ""
 
-#: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:209
-msgid "No available core (Hysteria2 or Xray) to import this node."
+#: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:154
+msgid "No available Xray core to import this Hysteria2 node."
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/ssrurl.htm:632
