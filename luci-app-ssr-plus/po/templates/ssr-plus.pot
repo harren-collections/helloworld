@@ -1720,6 +1720,14 @@ msgstr ""
 msgid "RUNNING"
 msgstr ""
 
+#: applications/luci-app-ssr-plus/luasrc/controller/shadowsocksr.lua:400
+msgid "RUNNING in %s Mode"
+msgstr ""
+
+#: applications/luci-app-ssr-plus/luasrc/controller/shadowsocksr.lua:396
+msgid "RUNNING in %s (%s) Mode"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/view/shadowsocksr/reset.htm:5
 msgid "Really reset all changes?"
 msgstr ""
@@ -2060,6 +2068,12 @@ msgstr ""
 msgid "ShadowsocksR"
 msgstr ""
 
+msgid "Shadowsocks"
+msgstr ""
+
+msgid "Shadowsocks-rust"
+msgstr ""
+
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:1324
 msgid "Short ID"
 msgstr ""
@@ -2316,6 +2330,18 @@ msgstr ""
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/client-config.lua:444
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/servers.lua:91
 msgid "Trojan"
+msgstr ""
+
+msgid "SOCKS5"
+msgstr ""
+
+msgid "ShadowTLS"
+msgstr ""
+
+msgid "Xray"
+msgstr ""
+
+msgid "Clash"
 msgstr ""
 
 #: applications/luci-app-ssr-plus/luasrc/model/cbi/shadowsocksr/advanced.lua:412
