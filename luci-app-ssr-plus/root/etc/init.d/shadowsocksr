@@ -266,6 +266,31 @@ get_ss_server_mihomo_runtime_file() {
 	echo "$(get_ss_server_mihomo_workdir "$1")/config.yaml"
 }
 
+link_mihomo_geodata() {
+	local workdir="$1"
+
+	[ -n "$workdir" ] || return 0
+
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
+	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
+	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
+	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
+
+	if [ -s /usr/share/v2ray/geosite.dat ]; then
+		ln -sf /usr/share/v2ray/geosite.dat "$workdir/GeoSite.dat"
+		ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+	else
+		[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
+		[ -s /etc/openclash/geosite.dat ] && ln -sf /etc/openclash/geosite.dat "$workdir/geosite.dat"
+	fi
+
+	if [ -s /usr/share/v2ray/geoip.dat ]; then
+		ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
+	else
+		[ -s /etc/openclash/geoip.dat ] && ln -sf /etc/openclash/geoip.dat "$workdir/geoip.dat"
+	fi
+}
+
 prepare_tuic_runtime_config() {
 	local sid="$1"
 	local local_port="$2"
@@ -285,13 +310,7 @@ prepare_tuic_runtime_config() {
 	fi
 
 	# Reuse existing local geodata files so Mihomo does not have to fetch them.
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
-	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
-	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
-	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
-	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
-	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+	link_mihomo_geodata "$workdir"
 }
 
 prepare_ss_mihomo_runtime_config() {
@@ -312,13 +331,7 @@ prepare_ss_mihomo_runtime_config() {
 		return 1
 	fi
 
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
-	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
-	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
-	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
-	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
-	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+	link_mihomo_geodata "$workdir"
 }
 
 prepare_ss_server_mihomo_runtime_config() {
@@ -487,13 +500,7 @@ prepare_clash_runtime_config() {
 
 	# Reuse existing local geodata files so Mihomo does not have to fetch them
 	# during startup in environments where DNS or outbound access is not ready yet.
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/Country.mmdb"
-	[ -s /usr/share/shadowsocksr/Country.mmdb ] && ln -sf /usr/share/shadowsocksr/Country.mmdb "$workdir/geoip.metadb"
-	[ ! -e "$workdir/Country.mmdb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/Country.mmdb"
-	[ ! -e "$workdir/geoip.metadb" ] && [ -s /etc/openclash/Country.mmdb ] && ln -sf /etc/openclash/Country.mmdb "$workdir/geoip.metadb"
-	[ -s /etc/openclash/GeoSite.dat ] && ln -sf /etc/openclash/GeoSite.dat "$workdir/GeoSite.dat"
-	[ -s /usr/share/v2ray/geoip.dat ] && ln -sf /usr/share/v2ray/geoip.dat "$workdir/geoip.dat"
-	[ -s /usr/share/v2ray/geosite.dat ] && ln -sf /usr/share/v2ray/geosite.dat "$workdir/geosite.dat"
+	link_mihomo_geodata "$workdir"
 }
 
 resolve_global_clash_socks_port() {

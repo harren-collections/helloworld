@@ -77,7 +77,6 @@ endchoice
 
 choice
 	prompt "Shadowsocks Client Selection"
-	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Rust_Client if (aarch64||arm||i386||loongarch64||riscv64||x86_64)
 	default PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client
 
 	config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_NONE_Client
@@ -122,7 +121,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_MosDNS
 config PACKAGE_$(PKG_NAME)_INCLUDE_Http_Proxy
 	bool "Include HTTP(S) Proxy Server"
 	select PACKAGE_3proxy
-	default n
+	default y if (aarch64||arm||i386||loongarch64||riscv64||x86_64)
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Mihomo
 	bool "Include Mihomo (Clash Support)"
@@ -155,7 +154,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_NaiveProxy
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_Simple_Obfs
 	bool "Include Shadowsocks Simple Obfs Plugin"
-	default y if (aarch64||arm||i386||loongarch64||riscv64||x86_64)
+	default n
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks_V2ray_Plugin
 	bool "Include Shadowsocks V2ray Plugin"
@@ -167,7 +166,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Libev_Client
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Libev_Server
 	bool "Include ShadowsocksR Libev Server"
-	default y if i386||x86_64||arm
+	default n
 
 endef
 
