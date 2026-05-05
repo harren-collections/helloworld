@@ -644,6 +644,29 @@ first_type() {
 	type -t -p "/bin/${1}" -p "/usr/bin/${1}" -p "/usr/libexec/${1}" -p "${TMP_BIN_PATH}/${1}" -p "${1}" "$@" | head -n1
 }
 
+has_ss_rust_client_binary() {
+	[ -n "$(first_type sslocal)" ]
+}
+
+has_ss_rust_server_binary() {
+	[ -n "$(first_type ssserver)" ]
+}
+
+has_mihomo_binary() {
+	local mihomo_bin="$(first_type mihomo)"
+	[ -x "$mihomo_bin" ]
+}
+
+use_mihomo_for_ss_rust_client() {
+	has_ss_rust_client_binary && return 1
+	has_mihomo_binary
+}
+
+use_mihomo_for_ss_rust_server() {
+	has_ss_rust_server_binary && return 1
+	has_mihomo_binary
+}
+
 ln_start_bin() {
 	local file_func=${1}
 	local ln_name=${2}
@@ -1070,6 +1093,10 @@ start_udp() {
 			redir_udp=0
 			ARG_UDP=""
 			echolog "UDP TPROXY Relay:Mihomo 单节点由主实例处理。"
+		elif [ "$udp_relay_server_type" = "ss-rust" ] && use_mihomo_for_ss_rust_client; then
+			redir_udp=0
+			ARG_UDP=""
+			echolog "UDP TPROXY Relay:ss-rust 主程序不存在，已回退到 Mihomo 主实例处理。"
 		else
 			gen_config_file $UDP_RELAY_SERVER $type 2 $tmp_udp_port
 			if [ "$udp_relay_server_type" = "ssr" ]; then
@@ -1157,7 +1184,7 @@ start_local() {
 			fi
 			ln_start_bin $ss_program ${type}-local -c $local_config_file
 			echolog "Global_Socks5:$(get_name $type) Started!"
-		elif [ "$local_server_type" = "ss" ]; then
+		elif [ "$local_server_type" = "ss" ] || { [ "$local_server_type" = "ss-rust" ] && use_mihomo_for_ss_rust_client; }; then
 			local mihomo_bin="$(first_type mihomo)"
 			local instance_key="${LOCAL_SERVER}-local"
 			[ -x "$mihomo_bin" ] || {
@@ -1167,7 +1194,11 @@ start_local() {
 			prepare_ss_mihomo_runtime_config "$LOCAL_SERVER" "$local_port" "$local_port" "$instance_key" "socks" || return 1
 			local ss_workdir="$(get_ss_mihomo_workdir "$instance_key")"
 			ln_start_bin "$mihomo_bin" ss-local -d "$ss_workdir" -f "$ss_workdir/config.yaml"
-			echolog "Global_Socks5:Mihomo (Shadowsocks) Started!"
+			if [ "$local_server_type" = "ss-rust" ]; then
+				echolog "Global_Socks5:ss-rust 主程序不存在，已回退到 Mihomo (Shadowsocks) 启动。"
+			else
+				echolog "Global_Socks5:Mihomo (Shadowsocks) Started!"
+			fi
 		else
 			gen_config_file $LOCAL_SERVER $type 4 $local_port
 			ss_program="$(first_type sslocal)"
@@ -1480,7 +1511,7 @@ Start_Run() {
 				ln_start_bin $ss_program ${type}-redir -c $tcp_config_file
 			done
 			echolog "Main node:$(get_name $type) $threads Threads Started!"
-		elif [ "$global_server_type" = "ss" ]; then
+		elif [ "$global_server_type" = "ss" ] || { [ "$global_server_type" = "ss-rust" ] && use_mihomo_for_ss_rust_client; }; then
 			local mihomo_bin="$(first_type mihomo)"
 			local ss_socks_port=0
 			[ -x "$mihomo_bin" ] || {
@@ -1493,7 +1524,11 @@ Start_Run() {
 			prepare_ss_mihomo_runtime_config "$GLOBAL_SERVER" "$tcp_port" "$ss_socks_port" "$GLOBAL_SERVER" "redir" || return 1
 			local ss_workdir="$(get_ss_mihomo_workdir "$GLOBAL_SERVER")"
 			ln_start_bin "$mihomo_bin" ssr-retcp -d "$ss_workdir" -f "$ss_workdir/config.yaml"
-			echolog "Main node:Mihomo (Shadowsocks) Started!"
+			if [ "$global_server_type" = "ss-rust" ]; then
+				echolog "Main node:ss-rust 主程序不存在，已回退到 Mihomo (Shadowsocks) 启动。"
+			else
+				echolog "Main node:Mihomo (Shadowsocks) Started!"
+			fi
 		else
 			gen_config_file $GLOBAL_SERVER $type 1 $tcp_port
 			ss_program="$(first_type sslocal)"
@@ -1724,7 +1759,7 @@ start_server() {
 			fi
 			case "$type" in
 			ss | ssr)
-				if [ "$node_type" = "ss" ]; then
+				if [ "$node_type" = "ss" ] || { [ "$node_type" = "ss-rust" ] && use_mihomo_for_ss_rust_server; }; then
 					local mihomo_bin="$(first_type mihomo)"
 					[ -x "$mihomo_bin" ] || {
 						echolog "Server:Mihomo 内核不存在，请确认 /usr/bin/mihomo 或 /usr/libexec/mihomo 可执行。"
@@ -1733,7 +1768,11 @@ start_server() {
 					prepare_ss_server_mihomo_runtime_config "$1" || return 1
 					local ss_server_workdir="$(get_ss_server_mihomo_workdir "$1")"
 					ln_start_bin "$mihomo_bin" ss-server-$server_count -d "$ss_server_workdir" -f "$ss_server_workdir/config.yaml"
-					echolog "Server:Mihomo Shadowsocks Server$server_count Started!"
+					if [ "$node_type" = "ss-rust" ]; then
+						echolog "Server:ss-rust 主程序不存在，已回退到 Mihomo Shadowsocks Server$server_count 启动。"
+					else
+						echolog "Server:Mihomo Shadowsocks Server$server_count Started!"
+					fi
 				else
 					gen_service_file ${type} $1 $TMP_PATH/ssr-server$server_count.json
 					if [ "$node_type" = "ssr" ]; then
